@@ -69,7 +69,8 @@ CREATE TABLE tutores (
   telefone TEXT,
   endereco TEXT,
   lat      REAL,                  -- posição do tutor: centro do mapa e origem das distâncias
-  lon      REAL
+  lon      REAL,
+  cpf      TEXT                   -- FICTÍCIO (projeto acadêmico; nunca usar CPF real — LGPD)
 );
 
 CREATE TABLE pets (
@@ -78,7 +79,9 @@ CREATE TABLE pets (
   nome       TEXT NOT NULL,
   especie    TEXT NOT NULL,   -- cao | gato
   idade_anos REAL NOT NULL,
-  porte      TEXT NOT NULL    -- pequeno | medio | grande
+  porte      TEXT NOT NULL,   -- pequeno | medio | grande
+  raca              TEXT,     -- ex.: "SRD", "Labrador"
+  observacoes_saude TEXT      -- problemas/observações de saúde — FICTÍCIOS (dado sensível na LGPD)
 );
 
 -- Cada compra feita no marketplace vira um registro aqui.
@@ -90,6 +93,22 @@ CREATE TABLE compras (
   data       TEXT NOT NULL,   -- ISO "YYYY-MM-DD"
   quantidade INTEGER NOT NULL DEFAULT 1,
   valor      REAL NOT NULL
+);
+
+-- Contas de acesso (login de DEMONSTRAÇÃO). Dois tipos:
+--   cliente → vinculada a um tutor (tabela tutores, com o pet em pets)
+--   clinica → vinculada a uma clínica (tabela clinicas)
+-- A senha NUNCA é guardada em texto puro: só o hash (werkzeug.security).
+CREATE TABLE contas (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo       TEXT NOT NULL CHECK (tipo IN ('cliente', 'clinica')),
+  email      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  senha_hash TEXT NOT NULL,
+  tutor_id   INTEGER REFERENCES tutores(id),
+  clinica_id INTEGER REFERENCES clinicas(id),
+  criado_em  TEXT NOT NULL,     -- ISO datetime
+  CHECK ((tipo = 'cliente' AND tutor_id IS NOT NULL AND clinica_id IS NULL) OR
+         (tipo = 'clinica' AND clinica_id IS NOT NULL AND tutor_id IS NULL))
 );
 
 -- Cache das consultas externas (Overpass/OpenStreetMap e Nominatim), com validade.

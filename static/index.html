@@ -7,14 +7,17 @@
 <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body data-modo="anon">
 <header>
   <div class="header-linha">
     <div>
       <h1 id="logo">🐾 PatasPerto</h1>
-      <p>Produtos para o seu pet nas lojas mais perto de você</p>
+      <p id="subtitulo">Produtos para o seu pet nas lojas mais perto de você</p>
     </div>
-    <button id="btConta" class="conta" title="Minha conta">👤 <span id="contaNome">Perfil</span></button>
+    <div class="header-acoes">
+      <button id="btConta" class="conta" title="Minha conta">👤 <span id="contaNome">Perfil</span></button>
+      <button id="btSair" class="conta" title="Entrar / sair da conta">Entrar</button>
+    </div>
   </div>
 </header>
 
@@ -43,6 +46,8 @@
 <div id="telaRecomendacao"></div>
 <div id="telaPerfil"></div>
 <div id="telaMapa"></div>
+<div id="telaLogin"></div>
+<div id="telaPainel"></div>
 
 <div id="toast" class="toast oculto"></div>
 

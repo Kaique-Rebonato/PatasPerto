@@ -8,12 +8,18 @@ Os dados de lojas, produtos, ofertas e clínicas são FICTÍCIOS (demonstração
 acadêmica). Os 6 primeiros produtos e as 5 lojas foram migrados do index.html
 original; os demais produtos foram acrescentados para dar sinal ao modelo de IA
 (grupo_ia: pele, bucal, articular...).
+
+Também cria uma população FICTÍCIA de tutores/pets/compras (para o painel da clínica
+ter o que agregar) e duas contas de demonstração — cliente e clínica — com senha
+guardada só como hash. CPFs e dados de saúde são fictícios (LGPD).
 """
 import math
 import os
 import random
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+
+from werkzeug.security import generate_password_hash
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 CAMINHO_DB = os.path.join(AQUI, "patasperto.db")
@@ -147,8 +153,10 @@ CLINICAS = [
 ]
 
 # ------------------------------------------------------------ tutor demo
-TUTOR_DEMO = (1, "Ana Ribeiro", "ana.ribeiro@exemplo.com", "(19) 98888-0000", "Rua das Acácias, 300 · Centro", *CENTRO)
-PET_DEMO = (1, 1, "Thor", "cao", 6.0, "medio")
+# CPF e dados de saúde são FICTÍCIOS (projeto acadêmico — nunca usar dados reais; LGPD).
+TUTOR_DEMO = (1, "Ana Ribeiro", "ana.ribeiro@exemplo.com", "(19) 98888-0000", "Rua das Acácias, 300 · Centro", *CENTRO,
+              "000.000.001-91")
+PET_DEMO = (1, 1, "Thor", "cao", 6.0, "medio", "Labrador", "Dermatite alérgica leve (fictício)")
 # Histórico de compras do tutor demo nos últimos 90 dias (oferta_id, dias_atras)
 COMPRAS_DEMO = [
     (1, 85), (1, 55), (1, 25),        # ração Golden (alimentação) a cada ~30 dias
@@ -157,6 +165,70 @@ COMPRAS_DEMO = [
     (8, 50),                          # bolinha (brinquedo)
     (36, 20),                         # tapete higiênico (higiene)
 ]
+
+# ------------------------------------------------- contas de demonstração
+# Login de DEMONSTRAÇÃO (senha guardada só como hash). (tipo, email, senha, tutor_id, clinica_id)
+CONTAS_DEMO = [
+    ("cliente", "ana.ribeiro@exemplo.com", "demo123", 1, None),
+    ("clinica", "contato@vidapet.exemplo", "demo123", None, 1),   # Clínica VidaPet
+]
+
+# ----------------------------------------- população fictícia de clientes
+# Outros tutores (sem conta de login) com um pet cada e compras nos últimos 180 dias.
+# Servem só para o painel da clínica ter o que agregar. Gerados com semente fixa.
+N_TUTORES_POPULACAO = 30
+NOMES = ["Bruno", "Carla", "Diego", "Elaine", "Fábio", "Gabriela", "Hugo", "Isabela", "João", "Karina",
+         "Lucas", "Mariana", "Nelson", "Olívia", "Paulo", "Queila", "Rafael", "Sabrina", "Tiago", "Úrsula",
+         "Vítor", "Wanda", "Xavier", "Yasmin", "Zeca", "Aline", "Breno", "Cecília", "Danilo", "Érica"]
+SOBRENOMES = ["Silva", "Souza", "Oliveira", "Costa", "Pereira", "Lima", "Almeida", "Ferreira", "Gomes", "Martins"]
+NOMES_PETS = {"cao": ["Rex", "Mel", "Bob", "Luna", "Pipoca", "Toby", "Nina", "Max", "Belinha", "Fred"],
+              "gato": ["Mingau", "Frajola", "Mia", "Tom", "Pantera", "Nala", "Simba", "Lola"]}
+# (raça, peso relativo, porte)
+RACAS = {"cao": [("SRD", 5, "medio"), ("Labrador", 3, "grande"), ("Shih Tzu", 3, "pequeno"), ("Golden Retriever", 2, "grande"),
+                 ("Poodle", 2, "pequeno"), ("Yorkshire", 2, "pequeno"), ("Bulldog Francês", 1, "medio"), ("Pinscher", 1, "pequeno")],
+         "gato": [("SRD", 5, "pequeno"), ("Siamês", 2, "pequeno"), ("Persa", 2, "pequeno"), ("Maine Coon", 1, "medio")]}
+OBS_SAUDE = ["", "", "", "Alergia alimentar (fictício)", "Tártaro (fictício)", "Artrose leve (fictício)",
+             "Sobrepeso (fictício)", "Otite recorrente (fictício)"]
+# Produtos que cada espécie tende a comprar: produto_id → peso. É isso que cria o "match"
+# categoria × espécie que o painel da clínica descobre por GROUP BY.
+PREFERENCIAS = {"cao":  {1: 5, 12: 2, 6: 4, 3: 3, 7: 3, 9: 2, 10: 1, 11: 1, 14: 2, 8: 1},
+                "gato": {2: 5, 13: 3, 5: 5, 4: 2, 8: 1, 10: 1}}
+
+
+def cpf_ficticio(rng):
+    """Gera um CPF FICTÍCIO com dígitos verificadores válidos (só para dados de demonstração)."""
+    n = [rng.randint(0, 9) for _ in range(9)]
+    for peso_ini in (10, 11):
+        s = sum(d * p for d, p in zip(n, range(peso_ini, 1, -1)))
+        n.append((s * 10 % 11) % 10)
+    d = "".join(map(str, n))
+    return f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
+
+
+def popular_clientes(con, hoje):
+    rng = random.Random(2024)
+    ofertas_por_produto = {}
+    for oid, pid, preco in con.execute("SELECT id, produto_id, preco FROM ofertas"):
+        ofertas_por_produto.setdefault(pid, []).append((oid, preco))
+    for i in range(N_TUTORES_POPULACAO):
+        tid = i + 2                                   # id 1 é o tutor demo
+        nome = f"{NOMES[i]} {rng.choice(SOBRENOMES)}"
+        email = nome.lower().split()[0].encode("ascii", "ignore").decode() + f".{tid}@exemplo.com"
+        con.execute("INSERT INTO tutores (id, nome, email, telefone, endereco, lat, lon, cpf) VALUES (?,?,?,?,?,?,?,?)",
+                    (tid, nome, email, f"(19) 9{rng.randint(1000, 9999)}-{rng.randint(1000, 9999)}",
+                     f"Rua Fictícia, {rng.randint(10, 999)} · Sumaré-SP", *CENTRO, cpf_ficticio(rng)))
+        especie = "cao" if rng.random() < 0.62 else "gato"
+        raca, _, porte = rng.choices(RACAS[especie], weights=[r[1] for r in RACAS[especie]])[0]
+        con.execute("INSERT INTO pets (tutor_id, nome, especie, idade_anos, porte, raca, observacoes_saude) VALUES (?,?,?,?,?,?,?)",
+                    (tid, rng.choice(NOMES_PETS[especie]), especie, round(rng.uniform(0.5, 14), 1), porte, raca,
+                     rng.choice(OBS_SAUDE)))
+        prefs = PREFERENCIAS[especie]
+        for _ in range(rng.randint(3, 14)):
+            pid = rng.choices(list(prefs), weights=list(prefs.values()))[0]
+            oid, preco = rng.choice(ofertas_por_produto[pid])
+            qtd = rng.choice([1, 1, 1, 2])
+            con.execute("INSERT INTO compras (tutor_id, oferta_id, data, quantidade, valor) VALUES (?,?,?,?,?)",
+                        (tid, oid, (hoje - timedelta(days=rng.randint(0, 179))).isoformat(), qtd, round(preco * qtd, 2)))
 
 
 def criar():
@@ -183,8 +255,8 @@ def criar():
                     (cid, nome, end, dist, tel, abre, fecha, h24, lat, lon))
         con.executemany("INSERT INTO clinica_especialidades VALUES (?,?)", [(cid, e) for e in esps])
 
-    con.execute("INSERT INTO tutores VALUES (?,?,?,?,?,?,?)", TUTOR_DEMO)
-    con.execute("INSERT INTO pets VALUES (?,?,?,?,?,?)", PET_DEMO)
+    con.execute("INSERT INTO tutores (id, nome, email, telefone, endereco, lat, lon, cpf) VALUES (?,?,?,?,?,?,?,?)", TUTOR_DEMO)
+    con.execute("INSERT INTO pets (id, tutor_id, nome, especie, idade_anos, porte, raca, observacoes_saude) VALUES (?,?,?,?,?,?,?,?)", PET_DEMO)
 
     hoje = date.today()
     for oferta_id, dias in COMPRAS_DEMO:
@@ -192,13 +264,23 @@ def criar():
         con.execute("INSERT INTO compras (tutor_id, oferta_id, data, quantidade, valor) VALUES (?,?,?,?,?)",
                     (1, oferta_id, (hoje - timedelta(days=dias)).isoformat(), 1, preco))
 
+    popular_clientes(con, hoje)
+
+    agora = datetime.now().isoformat(timespec="seconds")
+    for tipo, email, senha, tutor_id, clinica_id in CONTAS_DEMO:
+        con.execute("INSERT INTO contas (tipo, email, senha_hash, tutor_id, clinica_id, criado_em) VALUES (?,?,?,?,?,?)",
+                    (tipo, email, generate_password_hash(senha), tutor_id, clinica_id, agora))
+
     con.commit()
     resumo = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-              for t in ["lojas", "produtos", "ofertas", "clinicas", "tutores", "compras"]}
+              for t in ["lojas", "produtos", "ofertas", "clinicas", "tutores", "pets", "compras", "contas"]}
     con.close()
     print(f"Banco criado em {CAMINHO_DB}")
     for t, n in resumo.items():
         print(f"  {t:10s} {n:4d} registros")
+    print("\nContas de DEMONSTRAÇÃO (senha guardada só como hash):")
+    for tipo, email, senha, *_ in CONTAS_DEMO:
+        print(f"  {tipo:8s} {email:28s} senha: {senha}")
 
 
 if __name__ == "__main__":

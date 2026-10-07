@@ -133,10 +133,25 @@ Por que Random Forest: lida com categóricas e numéricas juntas, é robusto a r
 | `GET /api/clinicas?especialidade=&hora=HH:MM` | banco | clínicas de demonstração filtradas por especialidade e "aberta no horário" (trata 24h e faixas noturnas) |
 | `GET /api/clinicas?lat=&lon=&raio_km=5&hora=&so_abertas=1&meta=1` | dados externos | clínicas **reais** do OpenStreetMap ao redor da posição, com `aberta_agora` (True/False/None) e `meta` (fonte, raio, avisos) |
 | `GET /api/geocodificar?q=endereço` | dados externos | endereço/cidade → lat/lon/rótulo (Nominatim) |
-| `GET /api/tutores/<id>` · `/historico` | banco | tutor + pet (com lat/lon, centro do mapa); features de compra dos últimos 90 dias |
-| `POST /api/compras` `{tutor_id, oferta_id}` | banco | registra a compra — o dado que alimenta a IA |
+| `GET /api/tutores/<id>` · `/historico` | banco | tutor + pet (com lat/lon, centro do mapa); features de compra dos últimos 90 dias. Sem login: só o tutor demo (id 1); conta cliente: só o próprio tutor |
+| `POST /api/compras` `{tutor_id, oferta_id}` | banco | registra a compra — o dado que alimenta a IA (conta cliente: sempre no próprio tutor; conta clínica: 403) |
 | `POST /api/recomendar` `{tutor_id, especie, idade_anos, porte, situacao, hora, lat?, lon?, raio_km?}` | **IA + dados** | resposta com `ia` (especialidade, confiança, probabilidades, features usadas) e `banco` (clínicas abertas; reais se lat/lon vierem, com `fonte` e `aviso`) |
 | `GET /api/modelo/metricas` | arquivo | conteúdo de `ml/metricas.json` |
+| `POST /api/cadastro` | banco | cria conta `cliente` (+ tutor + pet) ou `clinica` (+ clínica) e já abre a sessão |
+| `POST /api/login` · `POST /api/logout` · `GET /api/sessao` | banco | login de demonstração com `flask.session`; `/api/sessao` diz quem está logado |
+| `PUT /api/perfil` | banco | (só cliente) atualiza tutor + pet da conta |
+| `GET /api/clinica/painel?periodo=mes\|semana` | **banco (agregação)** | (só clínica) mais comprados, espécies/raças, match categoria × espécie e volume por período — `GROUP BY`, **não é IA** |
+
+---
+
+## 7c. Contas: cliente × clínica (login de demonstração)
+
+- Tabela `contas` (`tipo` = `cliente` ou `clinica`, `email` único, `senha_hash`) vinculada a um registro de `tutores` **ou** de `clinicas` — as tabelas existentes são reaproveitadas. Senhas são guardadas só como hash (`werkzeug.security`).
+- **Cliente** vê o app normal (loja, recomendação, mapa, emergência, perfil) usando o próprio tutor e pet. O cadastro grava nome, CPF (fictício), telefone, endereço e o pet (nome, espécie, raça, idade, porte, observações de saúde).
+- **Clínica** vê outra visão: o painel de indicadores agregados dos clientes, calculado por consultas `GROUP BY` em `banco/consultas.py`. A clínica nunca recebe CPF, nome ou dados de saúde individuais.
+- Sem conta, "Continuar sem conta" (ou um atalho `/#mapa` etc.) abre o modo demonstração de antes, com o tutor demo.
+- Contas de demonstração criadas por `criar_banco.py` (senha `demo123`): cliente `ana.ribeiro@exemplo.com` · clínica `contato@vidapet.exemplo`.
+- **CPF e dados de saúde são fictícios (LGPD).** Login de demonstração: sem recuperação de senha, limite de tentativas ou HTTPS — não é segurança de produção.
 
 ---
 

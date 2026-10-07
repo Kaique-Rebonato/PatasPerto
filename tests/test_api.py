@@ -127,3 +127,86 @@ def test_opening_hours_parser():
     assert o.aberta_em("Mo-Fr 08:00-17:00; Sa 08:00-12:00", datetime(2026, 9, 13, 10, 0)) is False   # domingo
     assert o.aberta_em("Mo-Fr 19:00-07:00", datetime(2026, 9, 9, 23, 30)) is True                     # cruza meia-noite
     assert o.aberta_em(None, qua10) is None and o.aberta_em("by appointment", qua10) is None
+
+
+# ---------------- contas (login de demonstração) e painel da clínica
+@pytest.fixture
+def banco_temp(tmp_path, monkeypatch):
+    """Cópia do banco: cadastros feitos nos testes não ficam no banco do app."""
+    import shutil
+    import consultas
+    copia = tmp_path / "patasperto.db"
+    shutil.copy(consultas.CAMINHO_DB, copia)
+    monkeypatch.setattr(consultas, "CAMINHO_DB", str(copia))
+    return str(copia)
+
+
+CLIENTE_NOVO = {"tipo": "cliente", "email": "Teste.Cliente@Exemplo.com", "senha": "segredo1",
+                "nome": "Teste Cliente", "cpf": "123.456.789-09", "telefone": "(19) 90000-0000", "endereco": "Rua Teste, 1",
+                "pet": {"nome": "Bolt", "especie": "cao", "raca": "Beagle", "idade_anos": 3, "porte": "medio",
+                        "observacoes_saude": "Alergia a frango (fictício)"}}
+CLINICA_NOVA = {"tipo": "clinica", "email": "clinica.teste@exemplo.com", "senha": "segredo1", "nome": "Clínica Teste",
+                "telefone": "(19) 3000-0000", "endereco": "Av. Teste, 2", "abre": "08:00", "fecha": "18:00",
+                "especialidades": ["nutricao"]}
+
+
+def test_cadastro_cliente_cria_tutor_pet_e_guarda_hash(cliente, banco_temp):
+    import sqlite3
+    r = cliente.post("/api/cadastro", json=CLIENTE_NOVO)
+    assert r.status_code == 201
+    conta = r.get_json()["conta"]
+    assert conta["tipo"] == "cliente" and conta["email"] == "teste.cliente@exemplo.com"
+    assert conta["pet"]["raca"] == "Beagle" and conta["tutor"]["cpf"] == "123.456.789-09"
+    assert "senha_hash" not in conta
+    with sqlite3.connect(banco_temp) as con:
+        senha_hash, tutor_id = con.execute("SELECT senha_hash, tutor_id FROM contas WHERE email=?", (conta["email"],)).fetchone()
+    assert senha_hash != "segredo1" and senha_hash.startswith(("scrypt:", "pbkdf2:"))
+    assert tutor_id == conta["tutor"]["id"]
+    # sessão aberta: o histórico e as compras usam o tutor da conta
+    assert cliente.get("/api/sessao").get_json()["conta"]["id"] == conta["id"]
+    assert cliente.post("/api/compras", json={"oferta_id": 1}).status_code == 201
+    assert cliente.get(f"/api/tutores/{tutor_id}/historico").get_json()["total_compras_janela"] == 1
+    assert cliente.get("/api/tutores/2").status_code == 403          # dados de outro tutor
+    # e-mail repetido (sem diferenciar maiúsculas)
+    assert cliente.post("/api/cadastro", json=CLIENTE_NOVO | {"email": "TESTE.cliente@exemplo.com"}).status_code == 409
+
+
+def test_cadastro_valida_entrada(cliente, banco_temp):
+    assert cliente.post("/api/cadastro", json=CLIENTE_NOVO | {"cpf": "123"}).status_code == 400
+    assert cliente.post("/api/cadastro", json=CLIENTE_NOVO | {"senha": "123"}).status_code == 400
+    assert cliente.post("/api/cadastro", json=CLIENTE_NOVO | {"tipo": "admin"}).status_code == 400
+    assert cliente.post("/api/cadastro", json=CLINICA_NOVA | {"especialidades": ["astrologia"]}).status_code == 400
+    assert cliente.post("/api/cadastro", json=CLINICA_NOVA | {"abre": "25:00"}).status_code == 400
+
+
+def test_login_logout(cliente, banco_temp):
+    assert cliente.post("/api/login", json={"email": "ana.ribeiro@exemplo.com", "senha": "errada"}).status_code == 401
+    r = cliente.post("/api/login", json={"email": "ana.ribeiro@exemplo.com", "senha": "demo123"})
+    assert r.status_code == 200 and r.get_json()["conta"]["tutor"]["id"] == 1
+    assert cliente.post("/api/logout").status_code == 200
+    assert cliente.get("/api/sessao").get_json()["conta"] is None
+
+
+def test_painel_restrito_a_clinica(cliente, banco_temp):
+    assert cliente.get("/api/clinica/painel").status_code == 401                       # sem login
+    cliente.post("/api/login", json={"email": "ana.ribeiro@exemplo.com", "senha": "demo123"})
+    assert cliente.get("/api/clinica/painel").status_code == 403                       # conta cliente
+    cliente.post("/api/logout")
+    r = cliente.post("/api/cadastro", json=CLINICA_NOVA)
+    assert r.status_code == 201 and r.get_json()["conta"]["clinica"]["especialidades"] == ["nutricao"]
+    assert cliente.post("/api/compras", json={"oferta_id": 1}).status_code == 403      # clínica não compra
+    p = cliente.get("/api/clinica/painel?periodo=semana").get_json()
+    assert p["clinica"]["nome"] == "Clínica Teste" and "GROUP BY" in p["origem"]
+    assert p["totais"]["compras"] > 0 and p["mais_comprados"]
+    assert {e["especie"] for e in p["especies"]} == {"cao", "gato"}
+    assert len(p["volume"]) == 12 and sum(v["compras"] for v in p["volume"]) > 0
+    assert all(0 < m["participacao"] <= 1 for lista in p["match_categoria_especie"].values() for m in lista)
+    texto = str(p)
+    assert "cpf" not in texto and "observacoes_saude" not in texto                     # só agregados
+    assert all(r["n"] >= 2 or r["raca"] == "Outras" for r in p["racas"])               # sem grupos de 1 pet
+
+
+def test_clinica_criada_aparece_nas_clinicas_demo(cliente, banco_temp):
+    cliente.post("/api/cadastro", json=CLINICA_NOVA)
+    nomes = [c["nome"] for c in cliente.get("/api/clinicas?especialidade=nutricao").get_json()]
+    assert "Clínica Teste" in nomes

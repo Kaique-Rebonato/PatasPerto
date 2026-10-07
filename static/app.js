@@ -6,7 +6,8 @@
    ============================================================ */
 
 const API = "";            // mesma origem (a página é servida pelo Flask)
-const TUTOR_ID = 1;        // tutor demo cadastrado no banco
+let TUTOR_ID = 1;          // tutor demo do banco; com conta cliente logada, vira o tutor da conta
+let conta = null;          // conta logada (GET /api/sessao) — null no modo demonstração
 
 const ILUSTRACOES = {
   racaoCao: '<svg viewBox="0 0 100 100"><rect x="28" y="26" width="44" height="58" rx="6" fill="#D98A3D"/><path d="M28 26 L40 19 L60 19 L72 26 Z" fill="#B5702B"/><circle cx="50" cy="56" r="6" fill="#5A3A1A"/><circle cx="42" cy="48" r="3" fill="#5A3A1A"/><circle cx="50" cy="46" r="3" fill="#5A3A1A"/><circle cx="58" cy="48" r="3" fill="#5A3A1A"/></svg>',
@@ -54,7 +55,8 @@ let metricasModelo = null;
 /* ---- Utilidades ---- */
 const $ = id => document.getElementById(id);
 const grade = $("grade"), info = $("info"), campo = $("campoBusca");
-const telas = { lista: $("telaLista"), produto: $("telaProduto"), emergencia: $("telaEmergencia"), recomendacao: $("telaRecomendacao"), perfil: $("telaPerfil"), mapa: $("telaMapa") };
+const telas = { lista: $("telaLista"), produto: $("telaProduto"), emergencia: $("telaEmergencia"), recomendacao: $("telaRecomendacao"), perfil: $("telaPerfil"), mapa: $("telaMapa"),
+  login: $("telaLogin"), painel: $("telaPainel") };
 let termoAtual = "", ordemAtual = "preco";
 
 const fmt = v => "R$ " + v.toFixed(2).replace(".", ",");
@@ -200,26 +202,61 @@ async function comprar(o) {
 
 /* ================= PERFIL (tutor + pet) ================= */
 const PERFIL_PADRAO = { nome: "Ana Ribeiro", email: "ana.ribeiro@exemplo.com", telefone: "(19) 98888-0000", endereco: "Rua das Acácias, 300 · Centro",
-  petNome: "Thor", especie: "cao", idade: 6, porte: "medio", foto: "🐶" };
-function lerPerfil() { try { return { ...PERFIL_PADRAO, ...JSON.parse(localStorage.getItem("perfil") || "{}") }; } catch { return { ...PERFIL_PADRAO }; } }
-function salvarPerfil(p) { try { localStorage.setItem("perfil", JSON.stringify(p)); } catch {} atualizarConta(); }
-function atualizarConta() { $("contaNome").textContent = lerPerfil().nome.split(" ")[0] || "Perfil"; }
+  petNome: "Thor", especie: "cao", idade: 6, porte: "medio", raca: "", obs: "", cpf: "", foto: "🐶" };
+const ehCliente = () => !!conta && conta.tipo === "cliente";
+// Conta cliente: os dados vêm do banco (tutor + pet). No navegador fica só a foto escolhida.
+// Modo demonstração (sem conta): tudo continua salvo no navegador, como antes.
+const chavePerfil = () => conta ? "perfil:" + conta.id : "perfil";
+function perfilDaConta(c) {
+  const t = c.tutor, pt = c.pet || {};
+  return { nome: t.nome, email: c.email, telefone: t.telefone || "", endereco: t.endereco || "", cpf: t.cpf || "",
+    petNome: pt.nome || "", especie: pt.especie || "cao", idade: pt.idade_anos ?? 0, porte: pt.porte || "medio",
+    raca: pt.raca || "", obs: pt.observacoes_saude || "", foto: pt.especie === "gato" ? "🐱" : "🐶" };
+}
+function lerPerfil() {
+  const base = ehCliente() ? perfilDaConta(conta) : {};
+  try { return { ...PERFIL_PADRAO, ...base, ...JSON.parse(localStorage.getItem(chavePerfil()) || "{}") }; } catch { return { ...PERFIL_PADRAO, ...base }; }
+}
+async function salvarPerfil(p) {
+  if (ehCliente()) {
+    const r = await api("/api/perfil", { method: "PUT", body: JSON.stringify({ nome: p.nome, telefone: p.telefone, endereco: p.endereco,
+      pet: { nome: p.petNome, especie: p.especie, idade_anos: p.idade, porte: p.porte, raca: p.raca, observacoes_saude: p.obs } }) });
+    conta = r.conta;
+    try { localStorage.setItem(chavePerfil(), JSON.stringify({ foto: p.foto })); } catch {}
+  } else {
+    try { localStorage.setItem(chavePerfil(), JSON.stringify(p)); } catch {}
+  }
+  atualizarConta();
+}
+function atualizarConta() {
+  const modo = document.body.dataset.modo;
+  $("contaNome").textContent = conta && conta.tipo === "clinica" ? conta.clinica.nome : (lerPerfil().nome.split(" ")[0] || "Perfil");
+  $("btSair").textContent = conta ? "Sair" : "Entrar";
+  $("subtitulo").textContent = modo === "clinica" ? "Painel da clínica · indicadores agregados dos clientes"
+    : "Produtos para o seu pet nas lojas mais perto de você";
+}
 
 function renderPerfil() {
   const p = lerPerfil();
   const opt = (v, atual, rotulo) => '<option value="' + v + '"' + (v === atual ? ' selected' : '') + '>' + rotulo + '</option>';
+  const cli = ehCliente();
   telas.perfil.innerHTML =
     '<div class="perfil-topo"><div class="foto-perfil" id="fotoPet">' + p.foto + '</div><p>Toque na foto para trocar</p></div>' +
+    (cli ? '<div class="aviso lgpd">🔒 <b>Dados fictícios.</b> CPF e informações de saúde deste projeto acadêmico são fictícios — não informe dados reais (LGPD).</div>'
+         : '<div class="aviso lgpd">Você está no <b>modo demonstração</b>: o perfil fica salvo só neste navegador. <a href="#" id="lnkCriarConta">Crie uma conta</a> para salvar no banco.</div>') +
     '<div class="bloco"><h3>👤 Tutor</h3><div class="form-grid">' +
       '<div><label class="rotulo">Nome</label><input class="campo" id="pNome" value="' + esc(p.nome) + '"></div>' +
-      '<div><label class="rotulo">E-mail</label><input class="campo" id="pEmail" value="' + esc(p.email) + '"></div>' +
+      '<div><label class="rotulo">E-mail' + (cli ? ' (login)' : '') + '</label><input class="campo" id="pEmail" value="' + esc(p.email) + '"' + (cli ? ' readonly' : '') + '></div>' +
       '<div><label class="rotulo">Telefone</label><input class="campo" id="pTel" value="' + esc(p.telefone) + '"></div>' +
-      '<div><label class="rotulo">Endereço</label><input class="campo" id="pEnd" value="' + esc(p.endereco) + '"></div></div></div>' +
+      '<div><label class="rotulo">Endereço</label><input class="campo" id="pEnd" value="' + esc(p.endereco) + '"></div>' +
+      (cli ? '<div><label class="rotulo">CPF (fictício)</label><input class="campo" value="' + esc(p.cpf) + '" readonly></div>' : '') + '</div></div>' +
     '<div class="bloco"><h3>🐾 Pet</h3><div class="form-grid">' +
       '<div><label class="rotulo">Nome do pet</label><input class="campo" id="pPet" value="' + esc(p.petNome) + '"></div>' +
       '<div><label class="rotulo">Espécie</label><select class="campo" id="pEsp">' + opt("cao", p.especie, "Cão") + opt("gato", p.especie, "Gato") + '</select></div>' +
       '<div><label class="rotulo">Idade (anos)</label><input class="campo" id="pIdade" type="number" min="0" max="25" step="0.5" value="' + p.idade + '"></div>' +
-      '<div><label class="rotulo">Porte</label><select class="campo" id="pPorte">' + opt("pequeno", p.porte, "Pequeno") + opt("medio", p.porte, "Médio") + opt("grande", p.porte, "Grande") + '</select></div></div>' +
+      '<div><label class="rotulo">Porte</label><select class="campo" id="pPorte">' + opt("pequeno", p.porte, "Pequeno") + opt("medio", p.porte, "Médio") + opt("grande", p.porte, "Grande") + '</select></div>' +
+      '<div><label class="rotulo">Raça</label><input class="campo" id="pRaca" value="' + esc(p.raca) + '" placeholder="ex.: SRD, Labrador"></div></div>' +
+      '<label class="rotulo">Problemas / observações de saúde (fictícios)</label><textarea class="campo" id="pObs" rows="2" placeholder="ex.: alergia alimentar, artrose">' + esc(p.obs) + '</textarea>' +
       '<p class="explica">Espécie, idade e porte entram como variáveis do modelo de recomendação.</p></div>' +
     htmlLocalizacao(renderPerfil) +
     '<div class="bloco" id="blocoHist"><h3>🛒 Histórico de compras <span class="rot-db">consulta ao banco</span></h3><p class="origem">últimos 90 dias · tabela compras do SQLite</p><p class="vazio-clin">Carregando…</p></div>' +
@@ -227,10 +264,14 @@ function renderPerfil() {
 
   $("fotoPet").addEventListener("click", () => { const f = ["🐶", "🐱", "🐕", "🐈", "🐾"]; p.foto = f[(f.indexOf(p.foto) + 1) % f.length]; $("fotoPet").textContent = p.foto; });
   $("pEsp").addEventListener("change", e => { if (e.target.value === "gato") $("pPorte").value = "pequeno"; });
-  $("btSalvarPerfil").addEventListener("click", () => {
-    salvarPerfil({ nome: $("pNome").value, email: $("pEmail").value, telefone: $("pTel").value, endereco: $("pEnd").value,
-      petNome: $("pPet").value, especie: $("pEsp").value, idade: parseFloat($("pIdade").value) || 0, porte: $("pPorte").value, foto: p.foto });
-    toast("Perfil salvo (persistido no navegador).");
+  if ($("lnkCriarConta")) $("lnkCriarConta").addEventListener("click", ev => { ev.preventDefault(); abrirLogin("cadastro"); });
+  $("btSalvarPerfil").addEventListener("click", async () => {
+    try {
+      await salvarPerfil({ nome: $("pNome").value, email: $("pEmail").value, telefone: $("pTel").value, endereco: $("pEnd").value,
+        petNome: $("pPet").value, especie: $("pEsp").value, idade: parseFloat($("pIdade").value) || 0, porte: $("pPorte").value,
+        raca: $("pRaca").value, obs: $("pObs").value, foto: p.foto });
+      toast(ehCliente() ? "Perfil salvo no banco." : "Perfil salvo (persistido no navegador).");
+    } catch (e) { toast("Não foi possível salvar: " + e.message, 4000); }
   });
   api("/api/tutores/" + TUTOR_ID + "/historico").then(h => {
     const f = h.features;
@@ -551,6 +592,194 @@ async function atualizarMapa() {
   } catch (e) { lista.innerHTML = '<div class="aviso-erro">' + MSG_SEM_API + '</div>'; }
 }
 
+/* ================= CONTAS (login de demonstração) =================
+   Dois tipos: cliente (tutor + pet) e clínica. A API guarda só o hash da senha
+   e mantém a sessão num cookie (flask.session). */
+// modo da interface (atributo data-modo no <body>, usado pelo CSS):
+//   anon = tela de login · visitante = app sem conta (tutor demo) · cliente · clinica
+function aplicarConta(c, modo) {
+  conta = c;
+  TUTOR_ID = c && c.tipo === "cliente" ? c.tutor.id : 1;
+  tutorPos = null;                       // a posição demo depende do tutor
+  document.body.dataset.modo = modo || (c ? c.tipo : "visitante");
+  atualizarConta();
+}
+
+function abrirLogin(aba) { aplicarConta(null, "anon"); mostrar("login"); renderLogin(aba); }
+
+async function sair() {
+  try { await api("/api/logout", { method: "POST" }); } catch {}
+  history.replaceState(null, "", location.pathname);
+  abrirLogin("entrar");
+  toast("Você saiu da conta.");
+}
+
+function entrarComConta(c, msg) {
+  aplicarConta(c);
+  history.replaceState(null, "", location.pathname);
+  if (c.tipo === "clinica") { mostrar("painel"); renderPainel(); }
+  else { mostrar("lista"); if (catalogo.ofertas.length) render(); }
+  toast(msg);
+}
+
+// CPF FICTÍCIO com dígitos verificadores válidos — para testar o cadastro sem usar dado real.
+function cpfFicticio() {
+  const n = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+  for (const ini of [10, 11]) n.push((n.reduce((s, d, i) => s + d * (ini - i), 0) * 10 % 11) % 10);
+  const d = n.join("");
+  return d.slice(0, 3) + "." + d.slice(3, 6) + "." + d.slice(6, 9) + "-" + d.slice(9);
+}
+const mascaraCpf = v => { const d = v.replace(/\D/g, "").slice(0, 11);
+  return d.replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2"); };
+
+const AVISO_LGPD = '<div class="aviso lgpd">🔒 <b>Projeto acadêmico — use apenas dados fictícios.</b> CPF e informações de saúde do pet são dados pessoais/sensíveis (LGPD): não informe dados reais. A senha é guardada só como hash.</div>';
+
+function renderLogin(aba = "entrar", tipo = "cliente") {
+  const campo = (id, rotulo, extra = "") => '<div><label class="rotulo" for="' + id + '">' + rotulo + '</label><input class="campo" id="' + id + '" ' + extra + '></div>';
+  const acesso = '<div class="bloco"><h3>🔐 Acesso</h3><div class="form-grid">' +
+    campo("cEmail", "E-mail", 'type="email" autocomplete="email" placeholder="voce@exemplo.com"') +
+    campo("cSenha", "Senha (mín. 6 caracteres)", 'type="password" autocomplete="new-password"') + '</div></div>';
+  const formCliente =
+    '<div class="bloco"><h3>👤 Seus dados</h3><div class="form-grid">' +
+      campo("cNome", "Nome completo", 'autocomplete="name"') +
+      '<div><label class="rotulo" for="cCpf">CPF (fictício)</label><div class="campo-acao"><input class="campo" id="cCpf" inputmode="numeric" placeholder="000.000.000-00"><button type="button" class="btn-sec" id="btCpf" title="Gerar um CPF fictício">Gerar</button></div></div>' +
+      campo("cTel", "Telefone", 'placeholder="(19) 90000-0000"') + campo("cEnd", "Endereço", 'placeholder="Rua, número · bairro"') + '</div></div>' +
+    '<div class="bloco"><h3>🐾 Seu pet</h3><div class="form-grid">' +
+      campo("cPet", "Nome do pet") +
+      '<div><label class="rotulo" for="cEsp">Espécie</label><select class="campo" id="cEsp"><option value="cao">Cão</option><option value="gato">Gato</option></select></div>' +
+      campo("cRaca", "Raça", 'placeholder="ex.: SRD, Labrador, Siamês"') +
+      campo("cIdade", "Idade (anos)", 'type="number" min="0" max="30" step="0.5" value="3"') +
+      '<div><label class="rotulo" for="cPorte">Porte</label><select class="campo" id="cPorte"><option value="pequeno">Pequeno</option><option value="medio" selected>Médio</option><option value="grande">Grande</option></select></div></div>' +
+      '<label class="rotulo" for="cObs">Possíveis problemas / observações de saúde (fictícios)</label><textarea class="campo" id="cObs" rows="2" placeholder="ex.: alergia alimentar, artrose, otite recorrente"></textarea></div>';
+  const formClinica =
+    '<div class="bloco"><h3>🏥 Dados da clínica</h3><div class="form-grid">' +
+      campo("kNome", "Nome da clínica") + campo("kTel", "Telefone", 'placeholder="(19) 3000-0000"') + '</div>' +
+      '<label class="rotulo" for="kEnd">Endereço</label><input class="campo" id="kEnd" placeholder="Rua, número · bairro">' +
+      '<div class="form-grid">' + campo("kAbre", "Abre às", 'type="time" value="08:00"') + campo("kFecha", "Fecha às", 'type="time" value="18:00"') + '</div>' +
+      '<label class="chk"><input type="checkbox" id="k24"> Atendimento 24 horas</label>' +
+      '<span class="rotulo">Especialidades</span><div class="chk-grupo">' +
+        Object.entries(ESPECIALIDADES_NOMES).map(([v, n]) => '<label class="chk"><input type="checkbox" name="kEsp" value="' + v + '"' + (v === "clinico_geral" ? " checked" : "") + '> ' + n + '</label>').join("") + '</div>' +
+      '<p class="explica">A clínica aparece na lista de clínicas de demonstração (posição fictícia na cidade do demo).</p></div>';
+
+  telas.login.innerHTML =
+    '<div class="auth-topo"><div class="auth-logo">🐾</div><h2>Bem-vindo ao PatasPerto</h2><p>Entre com sua conta de <b>tutor</b> ou de <b>clínica</b>.</p></div>' +
+    '<div class="abas auth-abas"><button class="aba' + (aba === "entrar" ? " ativa" : "") + '" data-aba="entrar">Entrar</button>' +
+      '<button class="aba' + (aba === "cadastro" ? " ativa" : "") + '" data-aba="cadastro">Criar conta</button></div>' +
+    (aba === "entrar"
+      ? '<div class="bloco"><label class="rotulo" for="lEmail">E-mail</label><input class="campo" id="lEmail" type="email" autocomplete="username">' +
+          '<label class="rotulo" for="lSenha">Senha</label><input class="campo" id="lSenha" type="password" autocomplete="current-password">' +
+          '<button class="btn-prim" id="btEntrar">Entrar</button><div id="authErro"></div></div>' +
+        '<div class="bloco demo-contas"><h3>🧪 Contas de demonstração <span class="rot-demo">senha demo123</span></h3>' +
+          '<button class="btn-sec" data-demo="ana.ribeiro@exemplo.com">👤 Cliente · ana.ribeiro@exemplo.com</button>' +
+          '<button class="btn-sec" data-demo="contato@vidapet.exemplo">🏥 Clínica · contato@vidapet.exemplo</button></div>'
+      : '<div class="tipo-conta">' +
+          '<button class="tipo-op' + (tipo === "cliente" ? " ativo" : "") + '" data-tipo="cliente"><span class="ic">🐶</span><b>Sou tutor</b><small>Compro na loja e cuido do meu pet</small></button>' +
+          '<button class="tipo-op' + (tipo === "clinica" ? " ativo" : "") + '" data-tipo="clinica"><span class="ic">🏥</span><b>Sou clínica</b><small>Vejo indicadores dos clientes</small></button></div>' +
+        AVISO_LGPD + (tipo === "cliente" ? formCliente : formClinica) + acesso +
+        '<button class="btn-prim" id="btCadastrar">Criar conta de ' + (tipo === "cliente" ? "tutor" : "clínica") + '</button><div id="authErro"></div>') +
+    '<button class="link-demo" id="btVisitante">Continuar sem conta (modo demonstração) →</button>';
+
+  telas.login.querySelectorAll(".auth-abas .aba").forEach(b => b.addEventListener("click", () => renderLogin(b.dataset.aba, tipo)));
+  telas.login.querySelectorAll(".tipo-op").forEach(b => b.addEventListener("click", () => renderLogin("cadastro", b.dataset.tipo)));
+  $("btVisitante").addEventListener("click", () => { aplicarConta(null, "visitante"); mostrar("lista"); if (catalogo.ofertas.length) render(); });
+  const erro = msg => { $("authErro").innerHTML = '<div class="aviso-erro">' + esc(msg) + '</div>'; };
+
+  if (aba === "entrar") {
+    const entrar = async () => {
+      const bt = $("btEntrar"); bt.disabled = true;
+      try {
+        const r = await api("/api/login", { method: "POST", body: JSON.stringify({ email: $("lEmail").value, senha: $("lSenha").value }) });
+        entrarComConta(r.conta, "Olá, " + (r.conta.tipo === "clinica" ? r.conta.clinica.nome : r.conta.tutor.nome.split(" ")[0]) + "!");
+      } catch (e) { erro(e.message); bt.disabled = false; }
+    };
+    $("btEntrar").addEventListener("click", entrar);
+    $("lSenha").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
+    telas.login.querySelectorAll("[data-demo]").forEach(b => b.addEventListener("click", () => { $("lEmail").value = b.dataset.demo; $("lSenha").value = "demo123"; $("lSenha").focus(); }));
+    return;
+  }
+  if (tipo === "cliente") {
+    $("btCpf").addEventListener("click", () => { $("cCpf").value = cpfFicticio(); });
+    $("cCpf").addEventListener("input", e => { e.target.value = mascaraCpf(e.target.value); });
+    $("cEsp").addEventListener("change", e => { if (e.target.value === "gato") $("cPorte").value = "pequeno"; });
+  } else {
+    $("k24").addEventListener("change", e => { $("kAbre").disabled = $("kFecha").disabled = e.target.checked; });
+  }
+  $("btCadastrar").addEventListener("click", async () => {
+    const corpo = { tipo, email: $("cEmail").value, senha: $("cSenha").value };
+    if (tipo === "cliente") Object.assign(corpo, { nome: $("cNome").value, cpf: $("cCpf").value, telefone: $("cTel").value, endereco: $("cEnd").value,
+      pet: { nome: $("cPet").value, especie: $("cEsp").value, raca: $("cRaca").value, idade_anos: parseFloat($("cIdade").value), porte: $("cPorte").value, observacoes_saude: $("cObs").value } });
+    else Object.assign(corpo, { nome: $("kNome").value, telefone: $("kTel").value, endereco: $("kEnd").value, abre: $("kAbre").value, fecha: $("kFecha").value,
+      aberto_24h: $("k24").checked, especialidades: [...telas.login.querySelectorAll('input[name="kEsp"]:checked')].map(i => i.value) });
+    const bt = $("btCadastrar"); bt.disabled = true;
+    try {
+      const r = await api("/api/cadastro", { method: "POST", body: JSON.stringify(corpo) });
+      entrarComConta(r.conta, "✅ Conta criada! Bem-vindo(a) ao PatasPerto.");
+    } catch (e) { erro(e.message); bt.disabled = false; }
+  });
+}
+
+/* ================= PAINEL DA CLÍNICA =================
+   Tudo aqui é CONSULTA/AGREGAÇÃO AO BANCO (GROUP BY em banco/consultas.py) — não é IA.
+   A clínica vê só totais agregados: nenhum CPF, nome ou dado de saúde individual. */
+const NOME_ESPECIE = { cao: "🐶 Cães", gato: "🐱 Gatos" };
+const fmtInt = n => Number(n).toLocaleString("pt-BR");
+const fmtR$ = v => "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function barraH(rotulo, sub, valor, max, txt, destaque) {
+  return '<div class="hbar' + (destaque ? " top" : "") + '"><span class="hb-rot">' + esc(rotulo) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
+    '<div class="trilho"><div class="fill" style="width:' + (max ? Math.max(2, valor / max * 100) : 0) + '%"></div></div><span class="hb-val">' + txt + '</span></div>';
+}
+
+async function renderPainel(periodo = "mes") {
+  telas.painel.innerHTML = '<p class="vazio-clin">Carregando indicadores…</p>';
+  let d;
+  try { d = await api("/api/clinica/painel?periodo=" + periodo); }
+  catch (e) {
+    if (/login/.test(e.message)) { abrirLogin("entrar"); toast("Sua sessão expirou. Entre novamente."); return; }
+    telas.painel.innerHTML = '<div class="aviso-erro">' + (e.message.startsWith("HTTP") || e.message.includes("fetch") ? MSG_SEM_API : esc(e.message)) + '</div>';
+    return;
+  }
+  const t = d.totais, c = d.clinica;
+  const kpi = (ic, valor, rot) => '<div class="kpi"><span class="kpi-ic">' + ic + '</span><span class="kpi-v">' + valor + '</span><span class="kpi-r">' + rot + '</span></div>';
+  const maxItens = Math.max(1, ...d.mais_comprados.map(x => x.itens));
+  const totPets = d.especies.reduce((s, e) => s + e.n, 0) || 1;
+  const maxRaca = Math.max(1, ...d.racas.map(r => r.n));
+  const maxVol = Math.max(1, ...d.volume.map(v => v.compras));
+  const rotDb = '<span class="rot-db">GROUP BY</span>';
+
+  telas.painel.innerHTML =
+    '<h2 class="det-titulo">🏥 ' + esc(c.nome) + ' <span class="rot-db">consulta ao banco · agregação</span></h2>' +
+    '<p class="secao" style="margin:6px 0 0">Indicadores dos clientes do PatasPerto calculados com <b>consultas de agregação ao banco</b> (COUNT, SUM, AVG + GROUP BY) — <b>não é IA</b>. Últimos ' + d.janela_dias + ' dias.</p>' +
+    '<div class="kpis">' +
+      kpi("👥", fmtInt(t.clientes), "clientes cadastrados") + kpi("🐾", fmtInt(t.pets), "pets") +
+      kpi("🛒", fmtInt(t.compras), "compras no período") + kpi("💰", fmtR$(t.faturamento), "volume em compras") +
+      kpi("🧾", fmtR$(t.ticket_medio), "ticket médio") + kpi("🩺", fmtInt(t.pets_com_obs_saude), "pets com obs. de saúde") + '</div>' +
+    '<div class="painel-grid">' +
+      '<div class="bloco"><h3>🛒 O que os clientes mais compram ' + rotDb + '</h3><p class="origem">itens vendidos por produto · GROUP BY produto</p>' +
+        d.mais_comprados.map((x, i) => barraH(x.nome, x.categoria + " · " + x.clientes + " clientes", x.itens, maxItens, fmtInt(x.itens), i === 0)).join("") + '</div>' +
+      '<div class="bloco"><h3>🐾 Espécies e raças ' + rotDb + '</h3><p class="origem">pets cadastrados · GROUP BY espécie, raça</p>' +
+        d.especies.map((e, i) => barraH(NOME_ESPECIE[e.especie] || e.especie, "idade média " + num1(e.idade_media) + " anos", e.n, totPets, pct(e.n / totPets), i === 0)).join("") +
+        '<p class="sub-tit">Raças mais frequentes</p>' +
+        d.racas.map((r, i) => barraH(r.raca, NOME_ESPECIE[r.especie] || r.especie, r.n, maxRaca, fmtInt(r.n), i === 0)).join("") + '</div>' +
+      '<div class="bloco"><h3>🎯 Match categoria × espécie ' + rotDb + '</h3><p class="origem">itens por categoria dentro de cada espécie · GROUP BY espécie, categoria</p>' +
+        Object.entries(d.match_categoria_especie).map(([esp, lista]) => '<p class="sub-tit">' + (NOME_ESPECIE[esp] || esp) + '</p>' +
+          lista.map((m, i) => barraH(m.categoria, null, m.participacao, 1, pct(m.participacao) +
+            ' <span class="afin' + (m.afinidade >= 1.2 ? " alta" : "") + '" title="participação na espécie ÷ participação geral">' + num1(m.afinidade) + '×</span>', i === 0)).join("")).join("") +
+        '<p class="explica"><b>%</b> = fatia da categoria nas compras de quem tem aquela espécie. <b>×</b> = afinidade: quantas vezes acima (ou abaixo) da média geral a espécie compra a categoria.</p></div>' +
+      '<div class="bloco"><h3>📈 Volume de compras por período ' + rotDb + '</h3>' +
+        '<div class="filtros periodo"><button class="chip' + (periodo === "mes" ? " ativo" : "") + '" data-per="mes">Por mês</button><button class="chip' + (periodo === "semana" ? " ativo" : "") + '" data-per="semana">Por semana</button></div>' +
+        '<div class="colunas">' + d.volume.map(v => '<div class="col" title="' + v.compras + ' compras · ' + fmtR$(v.valor) + '"><span class="col-v">' + v.compras + '</span>' +
+          '<div class="col-b" style="height:' + (v.compras / maxVol * 100) + '%"></div><span class="col-r">' + v.periodo + '</span></div>').join("") + '</div>' +
+        '<p class="origem" style="margin-top:8px">compras por ' + (periodo === "semana" ? "semana (início na segunda-feira)" : "mês") + ' · GROUP BY strftime(data)</p></div>' +
+    '</div>' +
+    '<div class="bloco"><h3>🏥 Sua clínica <span class="rot-db">tabela clinicas</span></h3>' +
+      '<p class="local">📍 ' + esc(c.endereco) + ' · 📞 ' + esc(c.telefone) + ' · 🕘 ' + (c.aberto_24h ? "24 horas" : esc(c.abre) + "–" + esc(c.fecha)) + '</p>' +
+      '<div class="chk-grupo" style="margin-top:8px">' + c.especialidades.map(e => '<span class="tag-esp">' + (ESPECIALIDADES_NOMES[e] || esc(e)) + '</span>').join("") + '</div></div>' +
+    '<div class="aviso lgpd" style="margin-top:16px">🔒 Dados <b>fictícios</b> e <b>agregados</b>: a clínica não recebe CPF, nome nem observações de saúde de clientes individuais (LGPD).</div>';
+
+  telas.painel.querySelectorAll("[data-per]").forEach(b => b.addEventListener("click", () => renderPainel(b.dataset.per)));
+}
+
 /* ---- Navegação ---- */
 const navs = { lista: $("navLoja"), recomendacao: $("navRec"), mapa: $("navMapa"), emergencia: $("navEmg") };
 function mostrar(nome) {
@@ -562,16 +791,19 @@ navs.lista.addEventListener("click", () => mostrar("lista"));
 navs.recomendacao.addEventListener("click", () => { mostrar("recomendacao"); renderRecomendacao("checkup"); });
 navs.emergencia.addEventListener("click", () => { mostrar("emergencia"); renderEmergenciaHome(); });
 navs.mapa.addEventListener("click", () => { mostrar("mapa"); renderMapa(); });
-$("btConta").addEventListener("click", () => { mostrar("perfil"); renderPerfil(); });
-$("logo").addEventListener("click", () => mostrar("lista"));
+$("btConta").addEventListener("click", () => {
+  if (conta && conta.tipo === "clinica") { mostrar("painel"); renderPainel(); } else { mostrar("perfil"); renderPerfil(); }
+});
+$("btSair").addEventListener("click", () => conta ? sair() : abrirLogin("entrar"));
+$("logo").addEventListener("click", () => {
+  const modo = document.body.dataset.modo;
+  if (modo === "clinica") { mostrar("painel"); renderPainel(); } else if (modo !== "anon") mostrar("lista");
+});
 $("botaoBusca").addEventListener("click", () => { termoAtual = campo.value; render(); });
 campo.addEventListener("keydown", e => { if (e.key === "Enter") { termoAtual = campo.value; render(); } });
 document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => {
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("ativo")); chip.classList.add("ativo"); ordemAtual = chip.dataset.ord; render();
 }));
-
-atualizarConta();
-carregarDados();
 
 // Atalhos por URL para a apresentação: /#mapa, /#recomendacao, /#emergencia, /#perfil
 // ?pos=lat,lon[,rótulo] define a localização sem GPS (ex.: /?pos=-22.9056,-47.0608,Campinas#mapa)
@@ -582,6 +814,7 @@ carregarDados();
   if (isFinite(+lat) && isFinite(+lon)) salvarPosicao({ lat: +lat, lon: +lon, fonte: "endereco", rotulo: rot.join(",").trim() || ("Posição definida por URL (" + lat + ", " + lon + ")") });
 })();
 const abrirPorHash = () => {
+  if (["clinica", "anon"].includes(document.body.dataset.modo)) return;   // atalhos são da visão do cliente
   const h = location.hash.replace("#", "");
   if (h === "mapa") { mostrar("mapa"); renderMapa(); }
   else if (h.startsWith("recomendacao")) {          // /#recomendacao ou /#recomendacao/convulsao (já dispara)
@@ -593,4 +826,17 @@ const abrirPorHash = () => {
   else if (h === "perfil") { mostrar("perfil"); renderPerfil(); }
 };
 window.addEventListener("hashchange", abrirPorHash);
-abrirPorHash();
+
+/* ---- Início: quem está logado decide a visão ----
+   cliente → app normal (loja, recomendação, perfil) com o tutor da conta
+   clínica → painel de indicadores agregados (outra visão, outro cabeçalho)
+   sem conta → tela de login; "continuar sem conta" (ou um atalho /#...) abre o modo demonstração */
+(async () => {
+  let c = null, apiNoAr = true;
+  try { c = (await api("/api/sessao")).conta; } catch { apiNoAr = false; }
+  aplicarConta(c, c ? c.tipo : (location.hash || !apiNoAr ? "visitante" : "anon"));
+  carregarDados();
+  if (c && c.tipo === "clinica") { mostrar("painel"); renderPainel(); }
+  else if (document.body.dataset.modo === "anon") { mostrar("login"); renderLogin("entrar"); }
+  else { mostrar("lista"); abrirPorHash(); }
+})();

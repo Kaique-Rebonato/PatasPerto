@@ -125,7 +125,9 @@ nav.secoes button.ativo { color: #1f6f5c; font-weight: bold; border-bottom-color
 .confirma h3 { margin: 8px 0 6px; }
 
 /* ---- Responsividade ---- */
-@media (min-width: 900px) { #telaLista { max-width: 1120px; margin: 0 auto; } }
+/* Rede de segurança contra estouro horizontal (Leaflet já protege suas imagens com !important) */
+img, svg, video, canvas, iframe { max-width: 100%; }
+.barra input { min-width: 0; }
 @media (max-width: 560px) {
   .opcoes { grid-template-columns: 1fr; }
   .det-img { height: 170px; }
@@ -217,3 +219,102 @@ nav.secoes button.ativo { color: #1f6f5c; font-weight: bold; border-bottom-color
 .bloco.loc .btn-sec { width: auto; margin-top: 0; white-space: nowrap; }
 .bloco.loc .campo { width: auto; flex: 1; min-width: 0; margin-top: 0; }
 .bloco.loc .grupo-end { display: flex; gap: 6px; flex: 1 1 260px; min-width: 0; }
+
+/* ---- Modos da interface (body[data-modo]: anon · visitante · cliente · clinica) ---- */
+.header-acoes { display: flex; gap: 8px; align-items: center; }
+body[data-modo="anon"] nav.secoes, body[data-modo="anon"] .header-acoes { display: none; }
+body[data-modo="anon"] #telaLista { display: none; }      /* evita "piscar" a loja antes da tela de login */
+body[data-modo="clinica"] nav.secoes { display: none; }
+body[data-modo="clinica"] header { background: #2f3d73; }  /* visão da clínica: outra identidade visual */
+
+/* ---- Login / cadastro ---- */
+#telaLogin { display: none; padding: 20px 18px 40px; max-width: 640px; margin: 0 auto; }
+.auth-topo { text-align: center; }
+.auth-logo { width: 64px; height: 64px; margin: 0 auto 8px; border-radius: 50%; background: #eaf3f0; border: 2px solid #cfe3db; display: flex; align-items: center; justify-content: center; font-size: 32px; }
+.auth-topo h2 { margin: 0; font-size: 20px; }
+.auth-topo p { margin: 4px 0 0; font-size: 14px; color: #5b6774; }
+.auth-abas { margin-top: 16px; }
+.tipo-conta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.tipo-op { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 10px; background: #fff; border: 2px solid #e2e6ea; border-radius: 12px; cursor: pointer; font-family: inherit; color: #1f2a37; }
+.tipo-op .ic { font-size: 28px; }
+.tipo-op b { font-size: 14px; }
+.tipo-op small { font-size: 12px; color: #5b6774; text-align: center; }
+.tipo-op.ativo { border-color: #1f6f5c; background: #eaf3f0; }
+.tipo-op[data-tipo="clinica"].ativo { border-color: #2f3d73; background: #eceffa; }
+.aviso.lgpd { margin-top: 14px; }
+.campo-acao { display: flex; gap: 6px; margin-top: 6px; }
+.campo-acao .campo { margin-top: 0; flex: 1; min-width: 0; }
+.campo-acao .btn-sec { width: auto; margin-top: 0; padding: 0 12px; }
+.campo[readonly] { background: #f4f6f8; color: #5b6774; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 10px; cursor: pointer; }
+.chk-grupo { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.demo-contas .btn-sec { text-align: left; }
+.link-demo { display: block; margin: 18px auto 0; background: none; border: none; color: #1f6f5c; font-size: 14px; cursor: pointer; text-decoration: underline; }
+
+/* ---- Painel da clínica (indicadores agregados) ---- */
+#telaPainel { display: none; padding: 16px 18px 40px; max-width: 760px; margin: 0 auto; }
+.kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; }
+.kpi { background: #fff; border: 1px solid #e2e6ea; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; }
+.kpi-ic { font-size: 18px; }
+.kpi-v { font-size: 20px; font-weight: bold; color: #2f3d73; margin-top: 4px; }
+.kpi-r { font-size: 12px; color: #5b6774; }
+.painel-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 16px; }
+.sub-tit { font-size: 13px; font-weight: bold; margin: 14px 0 4px; }
+.hbar { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0; }
+.hbar .hb-rot { line-height: 1.25; }
+.hbar .hb-rot small { display: block; color: #8a94a0; font-size: 11px; }
+.hbar .trilho { height: 10px; background: #eef1f4; border-radius: 5px; overflow: hidden; }
+.hbar .fill { height: 100%; background: #8e9bd1; border-radius: 5px; }
+.hbar.top .fill { background: #2f3d73; }
+.hbar .hb-val { color: #3b4652; white-space: nowrap; text-align: right; }
+.afin { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 5px; background: #f0f2f4; color: #5b6774; margin-left: 4px; }
+.afin.alta { background: #e3f5ec; color: #12805c; }
+.filtros.periodo { padding: 4px 0 8px; }
+.colunas { display: flex; align-items: flex-end; gap: 6px; height: 170px; padding-top: 18px; border-bottom: 1px solid #e2e6ea; }
+.col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+.col-b { width: 100%; max-width: 46px; background: #8e9bd1; border-radius: 5px 5px 0 0; min-height: 2px; }
+.col:last-child .col-b { background: #2f3d73; }
+.col-v { font-size: 11px; color: #3b4652; margin-bottom: 3px; }
+.col-r { position: absolute; bottom: -18px; font-size: 10px; color: #8a94a0; white-space: nowrap; }
+.colunas + .origem { margin-top: 24px !important; }
+.tag-esp { font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 5px; background: #eceffa; color: #2f3d73; }
+@media (min-width: 560px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+
+/* ---- Desktop / telas largas (≥ 900px) ----
+   Faixa central de 1100px (conteúdo útil de 1064px + 18px de respiro de cada lado),
+   compartilhada por cabeçalho, abas e telas. Nada aqui afeta o layout mobile. */
+@media (min-width: 900px) {
+  .header-linha { max-width: 1064px; margin: 0 auto; }
+  nav.secoes { padding: 0 max(18px, calc((100% - 1064px) / 2)); }
+  nav.secoes button { flex: 0 0 auto; padding: 14px 20px; }
+
+  #telaLista, #telaRecomendacao, #telaPerfil, #telaMapa, #telaPainel { max-width: 1100px; margin: 0 auto; }
+
+  /* Painel da clínica: 6 indicadores numa linha e cartões em duas colunas */
+  .kpis { grid-template-columns: repeat(6, 1fr); }
+  .painel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  #telaProduto, #telaEmergencia { max-width: 760px; }   /* telas de leitura: coluna confortável */
+  #telaLista { padding-top: 16px; }
+
+  /* Loja: busca como cartão e grade com mais colunas (5 a 6) */
+  .barra { margin: 0 18px; border: 1px solid #e2e6ea; border-radius: 12px; }
+  .grade { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+  .imgbox { height: 130px; }
+
+  /* Recomendação: formulário em uma linha; resultado da IA ao lado das clínicas */
+  #telaRecomendacao .form-grid { grid-template-columns: repeat(4, 1fr); }
+  #resRec { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 0 20px; align-items: start; }
+  #resRec > :not(.bloco) { grid-column: 1 / -1; }
+  #resRec .resultado { flex-wrap: wrap; gap: 4px 14px; }
+  #resRec .resultado .conf { white-space: nowrap; }
+
+  /* Mapa: mais alto e lista de clínicas em duas colunas */
+  #telaMapa .mapa:not(.compacto) { height: 480px; }
+  #mapaLista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
+  #mapaLista > :not(.clinica) { grid-column: 1 / -1; }
+
+  /* Perfil: blocos Tutor e Pet lado a lado; localização e histórico em largura total */
+  #telaPerfil > .bloco:not(#blocoHist):not(.loc) { display: inline-block; vertical-align: top; width: calc(50% - 8px); }
+  #telaPerfil > .bloco:not(#blocoHist):not(.loc) + .bloco:not(#blocoHist):not(.loc) { margin-left: 16px; }
+  #telaPerfil > .btn-prim { display: block; width: auto; min-width: 260px; margin-left: auto; }
+}
