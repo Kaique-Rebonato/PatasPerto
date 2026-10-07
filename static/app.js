@@ -180,7 +180,7 @@ function abrirProduto(o) {
 
   $("btVoltar").addEventListener("click", () => mostrar("lista"));
   $("btComprar").addEventListener("click", () => comprar(o));
-  $("btCarrinho").addEventListener("click", () => toast("Item adicionado ao carrinho (simulação)."));
+  $("btCarrinho").addEventListener("click", () => { qtdCarrinho++; atualizarCarrinho(); toast("Item adicionado ao carrinho (simulação)."); });
   telas.produto.querySelectorAll(".oferta-lin").forEach((el, i) => el.addEventListener("click", () => abrirProduto(outras[i])));
   telas.produto.querySelectorAll(".aba").forEach(b => b.addEventListener("click", () => {
     telas.produto.querySelectorAll(".aba").forEach(x => x.classList.remove("ativa"));
@@ -530,7 +530,7 @@ function montarMapa(el, clinicas, opcoes = {}) {
   if (tutorPos) {
     const p = [tutorPos.lat, tutorPos.lon]; pontos.push(p);
     L.marker(p, { icon: pin("📍", "voce"), zIndexOffset: 1000 }).addTo(m).bindPopup("<b>Você está aqui</b><br>" + esc(tutorPos.rotulo || lerPerfil().endereco));
-    [1, 2].forEach(km => L.circle(p, { radius: km * 1000, color: "#1c62c4", weight: 2, dashArray: "6 6", fill: false, opacity: .75 }).addTo(m));
+    [1, 2].forEach(km => L.circle(p, { radius: km * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--texto").trim(), weight: 2, dashArray: "6 6", fill: false, opacity: .75 }).addTo(m));
   }
   clinicas.forEach(c => {
     const p = [c.lat, c.lon]; pontos.push(p);
@@ -799,8 +799,18 @@ $("logo").addEventListener("click", () => {
   const modo = document.body.dataset.modo;
   if (modo === "clinica") { mostrar("painel"); renderPainel(); } else if (modo !== "anon") mostrar("lista");
 });
-$("botaoBusca").addEventListener("click", () => { termoAtual = campo.value; render(); });
-campo.addEventListener("keydown", e => { if (e.key === "Enter") { termoAtual = campo.value; render(); } });
+// busca no cabeçalho: vale de qualquer tela e sempre leva à Loja
+const buscar = () => { termoAtual = campo.value; if (telas.lista.style.display !== "block") mostrar("lista"); render(); };
+$("botaoBusca").addEventListener("click", buscar);
+campo.addEventListener("keydown", e => { if (e.key === "Enter") buscar(); });
+
+// carrinho (simulação): só um contador no cabeçalho
+let qtdCarrinho = 0;
+function atualizarCarrinho() { const q = $("qtdCarrinho"); q.textContent = qtdCarrinho; q.hidden = !qtdCarrinho; }
+$("btCarrinhoTopo").addEventListener("click", () => toast(qtdCarrinho ? "🛒 " + qtdCarrinho + " item(ns) no carrinho (simulação)." : "Seu carrinho está vazio."));
+
+// arte do hero da Loja: as mesmas ilustrações dos produtos
+$("heroArte").innerHTML = '<span class="ha ha-1">' + ILUSTRACOES.racaoCao + '</span><span class="ha ha-2">' + ILUSTRACOES.bola + '</span><span class="ha ha-3">' + ILUSTRACOES.petisco + '</span>';
 document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => {
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("ativo")); chip.classList.add("ativo"); ordemAtual = chip.dataset.ord; render();
 }));

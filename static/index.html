@@ -10,12 +10,17 @@
 <body data-modo="anon">
 <header>
   <div class="header-linha">
-    <div>
+    <div class="header-logo">
       <h1 id="logo">🐾 PatasPerto</h1>
       <p id="subtitulo">Produtos para o seu pet nas lojas mais perto de você</p>
     </div>
+    <div class="busca-topo" role="search">
+      <input id="campoBusca" type="text" placeholder="Buscar produto (ex.: ração, antipulgas, dental)" autocomplete="off" aria-label="Buscar produto">
+      <button id="botaoBusca">Buscar</button>
+    </div>
     <div class="header-acoes">
       <button id="btConta" class="conta" title="Minha conta">👤 <span id="contaNome">Perfil</span></button>
+      <button id="btCarrinhoTopo" class="conta conta-icone" title="Carrinho" aria-label="Carrinho">🛒<span id="qtdCarrinho" class="qtd" hidden>0</span></button>
       <button id="btSair" class="conta" title="Entrar / sair da conta">Entrar</button>
     </div>
   </div>
@@ -29,10 +34,13 @@
 </nav>
 
 <div id="telaLista">
-  <div class="barra">
-    <input id="campoBusca" type="text" placeholder="Buscar produto (ex.: ração, antipulgas, dental)" autocomplete="off">
-    <button id="botaoBusca">Buscar</button>
-  </div>
+  <section class="hero">
+    <div class="hero-texto">
+      <h2 class="titulo-hero"><span class="t1">Tudo para o seu</span> <span class="t2">pet</span>
+        <span class="apoio">Ração, saúde e diversão nas lojas mais perto de você</span></h2>
+    </div>
+    <div class="hero-arte" id="heroArte" aria-hidden="true"></div>
+  </section>
   <div class="filtros">
     <button class="chip ativo" data-ord="preco">↓ Menor preço</button>
     <button class="chip" data-ord="perto">Mais perto</button>
