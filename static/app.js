@@ -135,6 +135,7 @@ function render() {
         '<p class="aval">★ ' + num1(o.loja.nota) + ' <span class="qtd">(' + o.loja.qtdAvaliacoes + ')</span></p>' +
         '<p class="entrega">' + iconeEntrega(o.entrega) + ' ' + o.entrega + ' · ' + num1(o.loja.distanciaKm) + ' km</p>' +
         '<p class="loja">' + esc(o.loja.nome) + '</p>' +
+        '<span class="btn-ver">Ver oferta</span>' +
       '</div>';
     card.addEventListener("click", () => abrirProduto(o));
     grade.appendChild(card);
@@ -809,8 +810,6 @@ let qtdCarrinho = 0;
 function atualizarCarrinho() { const q = $("qtdCarrinho"); q.textContent = qtdCarrinho; q.hidden = !qtdCarrinho; }
 $("btCarrinhoTopo").addEventListener("click", () => toast(qtdCarrinho ? "🛒 " + qtdCarrinho + " item(ns) no carrinho (simulação)." : "Seu carrinho está vazio."));
 
-// arte do hero da Loja: as mesmas ilustrações dos produtos
-$("heroArte").innerHTML = '<span class="ha ha-1">' + ILUSTRACOES.racaoCao + '</span><span class="ha ha-2">' + ILUSTRACOES.bola + '</span><span class="ha ha-3">' + ILUSTRACOES.petisco + '</span>';
 document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => {
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("ativo")); chip.classList.add("ativo"); ordemAtual = chip.dataset.ord; render();
 }));

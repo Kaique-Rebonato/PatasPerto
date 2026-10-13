@@ -8,6 +8,9 @@
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("vendor/poppins/poppins-latin-500-normal.woff2") format("woff2"); }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("vendor/poppins/poppins-latin-600-normal.woff2") format("woff2"); }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 700; font-display: swap; src: url("vendor/poppins/poppins-latin-700-normal.woff2") format("woff2"); }
+/* Nunito (arredondada, OFL): logo, títulos, preços e botões */
+@font-face { font-family: "Nunito"; font-style: normal; font-weight: 700; font-display: swap; src: url("vendor/nunito/nunito-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Nunito"; font-style: normal; font-weight: 800; font-display: swap; src: url("vendor/nunito/nunito-latin-800-normal.woff2") format("woff2"); }
 
 /* ---- Tokens (DESIGN.md) ---- */
 :root {
@@ -41,6 +44,14 @@
 
   /* tipografia */
   --fonte: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --fonte-titulo: "Nunito", var(--fonte);
+
+  /* identidade pet shop: pílulas, cantos arredondados e sombras suaves esverdeadas */
+  --verde-palido: #F2FAF6;   /* fundo da ilustração nos cards */
+  --pilula: 999px;
+  --raio-card: 18px;
+  --sombra-card: 0 1px 2px rgba(31, 111, 92, .06), 0 4px 14px rgba(31, 111, 92, .08);
+  --sombra-card-hover: 0 2px 4px rgba(31, 111, 92, .08), 0 10px 24px rgba(31, 111, 92, .14);
 }
 
 * { box-sizing: border-box; }
@@ -48,7 +59,11 @@ body { font-family: var(--fonte); font-size: 15px; line-height: 1.6; margin: 0; 
 button, input, select, textarea { font-family: inherit; line-height: 1.3; }
 h1, h2, h3, h4 { line-height: 1.25; }
 header { background: var(--verde-escuro); color: var(--texto-inverso); padding: 14px 18px; }
-header h1 { margin: 0; font-size: 22px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+header h1 { margin: 0; font-family: var(--fonte-titulo); font-size: 24px; font-weight: 800; letter-spacing: -.2px; cursor: pointer; white-space: nowrap; line-height: 0; }
+/* logo em imagem (PNG transparente): altura fixa, largura proporcional; contorno branco fino para destacar do verde */
+#logo img { display: block; height: 44px; width: auto;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, .95)) drop-shadow(0 0 1px rgba(255, 255, 255, .95)) drop-shadow(0 0 3px rgba(255, 255, 255, .5)); }
+@media (max-width: 420px) { #logo img { height: 38px; } }
 body:not([data-modo="clinica"]) #subtitulo { display: none; }   /* fora da clínica, o hero da Loja faz esse papel */
 header p { margin: 3px 0 0; font-size: 12px; opacity: .9; }
 
@@ -56,36 +71,35 @@ header p { margin: 3px 0 0; font-size: 12px; opacity: .9; }
 .busca-topo { display: flex; gap: 4px; padding: 4px; background: var(--superficie); border-radius: 999px; }
 .busca-topo input { flex: 1; min-width: 0; padding: 8px 14px; font-size: 15px; border: none; border-radius: 999px; background: transparent; color: var(--texto); }
 .busca-topo input:focus { outline: 2px solid var(--verde-medio); outline-offset: 0; }
-.busca-topo button { padding: 8px 18px; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--verde-escuro); color: var(--texto-inverso); border: none; border-radius: 999px; }
+.busca-topo button { padding: 8px 18px; font-family: var(--fonte-titulo); font-size: 15px; font-weight: 800; cursor: pointer; background: var(--verde-escuro); color: var(--texto-inverso); border: none; border-radius: 999px; }
 .busca-topo button:hover { background: var(--verde-hover); }
 
-/* hero da Loja: contraste de peso no título + arte com as ilustrações dos produtos */
+/* hero da Loja: contraste de peso no título + pata preta decorativa à direita */
 .hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 48px 18px 36px; }
-.hero-arte { position: relative; width: 240px; height: 200px; }
-.hero-arte::before { content: ""; position: absolute; inset: 0 10px; border-radius: 50%; background: var(--verde-claro); }
-.hero-arte .ha { position: absolute; display: block; }
-.hero-arte .ha svg { width: 100%; height: 100%; display: block; }
-.ha-1 { width: 150px; height: 150px; left: 45px; top: 20px; }
-.ha-2 { width: 80px; height: 80px; right: 0; bottom: 0; }
-.ha-3 { width: 70px; height: 70px; left: 0; top: 0; }
+.hero-arte { width: clamp(64px, 8cqw, 104px); color: #000; opacity: .85; transform: rotate(18deg); filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .25)); }
+.hero-arte svg { width: 100%; height: auto; display: block; }
 
 .filtros { display: flex; gap: 8px; padding: 12px 18px 4px; }
-.chip { font-size: 13px; padding: 7px 14px; border-radius: 20px; cursor: pointer; background: var(--superficie); border: 1px solid var(--borda-campo); color: var(--texto); }
+.chip { font-size: 13px; padding: 7px 16px; border-radius: var(--pilula); cursor: pointer; background: var(--superficie); border: 1px solid var(--borda-campo); color: var(--texto); }
 .chip.ativo { background: var(--verde-escuro); border-color: var(--verde-escuro); color: var(--texto-inverso); font-weight: 600; }
 
 .info { padding: 10px 18px 4px; font-size: 13px; color: var(--texto-suave); }
 
-.grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 12px; padding: 10px 18px 28px; }
-.card { background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column; cursor: pointer; transition: box-shadow .15s; }
-.card:hover { box-shadow: 0 3px 10px rgba(0,0,0,.10); }
-.imgbox { height: 118px; background: var(--superficie); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--borda); }
-.imgbox svg { width: 92px; height: 92px; }
-.badges { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; }
-.badge { font-size: 12px; font-weight: 600; line-height: 1.3; padding: 3px 7px; border-radius: 5px; }
-.badge.verde { background: var(--verde-claro); color: var(--verde-escuro); }
-.badge.azul  { background: var(--superficie); color: var(--texto); box-shadow: inset 0 0 0 1px var(--borda); }
-.corpo { padding: 8px 10px 12px; }
-.preco { font-size: 18px; font-weight: 700; line-height: 1.3; margin: 0; }
+.grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 16px; padding: 12px 18px 32px; }
+.card { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-card); box-shadow: var(--sombra-card); overflow: hidden; position: relative; display: flex; flex-direction: column; cursor: pointer; transition: box-shadow .2s, transform .2s; }
+.card:hover { box-shadow: var(--sombra-card-hover); transform: translateY(-3px); }
+.imgbox { height: 124px; margin: 8px 8px 0; border-radius: calc(var(--raio-card) - 6px); background: var(--verde-palido); display: flex; align-items: center; justify-content: center; }
+.imgbox svg { width: 88px; height: 88px; transition: transform .2s; }
+.card:hover .imgbox svg { transform: scale(1.06); }
+.badges { position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.badge { font-size: 12px; font-weight: 600; line-height: 1.3; padding: 3px 10px; border-radius: var(--pilula); }
+.badge.verde { background: var(--verde-escuro); color: var(--texto-inverso); }
+.badge.azul  { background: var(--superficie); color: var(--verde-escuro); box-shadow: inset 0 0 0 1px var(--verde-borda); }
+.corpo { padding: 10px 12px 12px; display: flex; flex-direction: column; flex: 1; }
+.preco { font-family: var(--fonte-titulo); font-size: 20px; font-weight: 800; line-height: 1.25; color: var(--verde-escuro); margin: 0; }
+.btn-ver { display: block; margin-top: auto; padding: 8px 12px; border-radius: var(--pilula); background: var(--verde-claro); color: var(--verde-escuro); font-family: var(--fonte-titulo); font-size: 14px; font-weight: 800; text-align: center; transition: background .15s, color .15s; }
+.loja { margin-bottom: 10px !important; }
+.card:hover .btn-ver { background: var(--verde-escuro); color: var(--texto-inverso); }
 .titulo { font-size: 13px; color: var(--texto-suave); margin: 3px 0 0; line-height: 1.3; min-height: 34px; }
 .aval { font-size: 12px; color: var(--alerta); margin: 5px 0 0; }
 .aval .qtd { color: var(--texto-suave); }
@@ -150,9 +164,10 @@ header p { margin: 3px 0 0; font-size: 12px; opacity: .9; }
 .oferta-lin small { color: var(--texto-suave); font-size: 12px; display: block; }
 
 /* ---- Navegação de seções ---- */
-nav.secoes { display: flex; background: var(--superficie); border-bottom: 1px solid var(--borda); }
-nav.secoes button { flex: 1; padding: 12px; font-size: 15px; background: none; border: none; cursor: pointer; color: var(--texto-suave); border-bottom: 2px solid transparent; }
-nav.secoes button.ativo { color: var(--verde-escuro); font-weight: 600; border-bottom-color: var(--verde-escuro); }
+nav.secoes { display: flex; gap: 6px; padding: 8px 12px; background: var(--superficie); border-bottom: 1px solid var(--borda); }
+nav.secoes button { flex: 1; padding: 8px 12px; font-size: 15px; background: none; border: none; border-radius: var(--pilula); cursor: pointer; color: var(--texto-suave); transition: background .15s, color .15s; }
+nav.secoes button:hover { background: var(--verde-palido); color: var(--verde-escuro); }
+nav.secoes button.ativo { background: var(--verde-claro); color: var(--verde-escuro); font-weight: 600; }
 
 /* ---- Emergência ---- */
 #telaEmergencia { display: none; padding: 16px 18px 40px; max-width: 640px; margin: 0 auto; }
@@ -219,8 +234,8 @@ img, svg, video, canvas, iframe { max-width: 100%; }
 }
 @media (max-width: 420px) { #contaNome { display: none; } .header-acoes { gap: 6px; } }   /* só o ícone 👤 no celular */
 @media (max-width: 380px) { header h1 { font-size: 17px; } .header-acoes .conta { padding: 5px 8px; font-size: 12px; } }
-.conta { background: rgba(255,255,255,.15); color: var(--texto-inverso); border: 1px solid rgba(255,255,255,.4); border-radius: 20px; padding: 7px 12px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
-.conta:hover { background: rgba(255,255,255,.25); }
+.conta { background: rgba(255,255,255,.14); color: var(--texto-inverso); border: 1px solid rgba(255,255,255,.35); border-radius: var(--pilula); padding: 8px 14px; font-family: var(--fonte-titulo); font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+.conta:hover { background: var(--superficie); color: var(--verde-escuro); }
 
 /* ---- Recomendação / Perfil ---- */
 #telaRecomendacao, #telaPerfil { display: none; padding: 16px 18px 40px; max-width: 640px; margin: 0 auto; }
@@ -281,7 +296,7 @@ img, svg, video, canvas, iframe { max-width: 100%; }
 .clinica.sel { border-color: var(--verde-escuro); box-shadow: 0 0 0 2px var(--verde-borda); }
 .clinica.fechada-lin { opacity: .65; }
 .tagoff { font-size: 12px; font-weight: 600; line-height: 1.3; background: var(--borda); color: var(--texto-suave); padding: 3px 7px; border-radius: 5px; }
-@media (max-width: 400px) { nav.secoes button { font-size: 13px; padding: 10px 4px; } }
+@media (max-width: 400px) { nav.secoes { gap: 2px; padding: 6px 4px; } nav.secoes button { flex: 1 1 auto; font-size: 13px; padding: 8px 4px; } }
 .leg .l-anel::before { border-color: var(--texto); border-style: dashed; background: transparent; }
 .rot-ok { font-size: 12px; font-weight: 600; line-height: 1.3; padding: 3px 8px; border-radius: 5px; background: var(--verde-claro); color: var(--verde-escuro); }
 .rot-demo { font-size: 12px; font-weight: 600; line-height: 1.3; padding: 3px 8px; border-radius: 5px; background: var(--fundo); color: var(--texto-suave); box-shadow: inset 0 0 0 1px var(--borda); }
@@ -358,8 +373,8 @@ body[data-modo="clinica"] header { background: var(--petroleo); }  /* visão da 
    compartilhada por cabeçalho, abas e telas. Nada aqui afeta o layout mobile. */
 @media (min-width: 900px) {
   .header-linha { max-width: 1064px; margin: 0 auto; }
-  nav.secoes { padding: 0 max(18px, calc((100% - 1064px) / 2)); }
-  nav.secoes button { flex: 0 0 auto; padding: 14px 20px; }
+  nav.secoes { padding: 10px max(18px, calc((100% - 1064px) / 2)); }
+  nav.secoes button { flex: 0 0 auto; padding: 9px 20px; }
 
   #telaLista, #telaRecomendacao, #telaPerfil, #telaMapa, #telaPainel { max-width: 1100px; margin: 0 auto; }
 
@@ -371,10 +386,6 @@ body[data-modo="clinica"] header { background: var(--petroleo); }  /* visão da 
 
   /* Loja: hero com mais respiro e grade com mais colunas (5 a 6) */
   .hero { padding: 64px 18px 48px; }
-  .hero-arte { width: 300px; height: 240px; }
-  .ha-1 { width: 190px; height: 190px; left: 55px; top: 22px; }
-  .ha-2 { width: 96px; height: 96px; }
-  .ha-3 { width: 84px; height: 84px; }
   .grade { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
   .imgbox { height: 130px; }
 
@@ -399,13 +410,44 @@ body[data-modo="clinica"] header { background: var(--petroleo); }  /* visão da 
 /* ---- Título hero com contraste de peso (DESIGN.md › Tipografia) ----
    <h2 class="titulo-hero"><span class="t1">Patas</span> <span class="t2">Perto</span>
    <span class="apoio">linha de apoio</span></h2> */
-.titulo-hero { font-size: 44px; line-height: 1.15; margin: 0; font-weight: 700; }
-.titulo-hero .t1 { color: var(--verde-escuro); font-weight: 700; }
-.titulo-hero .t2 { color: var(--verde-medio); font-weight: 700; }
-.titulo-hero .apoio { display: block; margin-top: 8px; font-size: 16px; font-weight: 300; color: var(--texto); letter-spacing: 2px; line-height: 1.5; }
+.titulo-hero { font-family: var(--fonte-titulo); font-size: 46px; line-height: 1.1; margin: 0; font-weight: 800; }
+.titulo-hero .t1 { color: var(--verde-escuro); font-weight: 800; }
+.titulo-hero .t2 { color: var(--verde-medio); font-weight: 800; }
+.titulo-hero .apoio { display: block; margin-top: 8px; font-family: var(--fonte); font-size: 16px; font-weight: 300; color: var(--texto); letter-spacing: 2px; line-height: 1.5; }
 @media (max-width: 560px) {
   .titulo-hero { font-size: 34px; } .titulo-hero .apoio { font-size: 14px; letter-spacing: 1.5px; }
-  .hero { grid-template-columns: minmax(0, 1fr) 110px; gap: 12px; padding-top: 28px; padding-bottom: 20px; }
-  .hero-arte { width: 110px; height: 110px; }
-  .ha-1 { width: 80px; height: 80px; left: 15px; top: 12px; } .ha-2 { width: 44px; height: 44px; } .ha-3 { width: 38px; height: 38px; }
+}
+
+/* ---- Hero da Loja com foto de fundo ---- */
+.hero {
+    background-image: url('/static/img/upscalemedia-transformed.webp');
+    background-size: cover;
+    background-position: center 5%;   /* o rosto fica no alto da foto (olhos ~12%, focinho ~30%) */
+    background-repeat: no-repeat;
+    position: relative;
+    min-height: clamp(240px, 40cqw, 340px);   /* ~340px no desktop, ~240px no celular, sem cortar o texto */
+    padding-top: 24px;
+    padding-bottom: 24px;
+    /* full-bleed: sai da faixa central e vai de ponta a ponta da tela;
+       o padding lateral mantém o texto alinhado com a faixa de 1064px do resto da página;
+       100cqw = largura útil do body SEM a barra de rolagem (100vw a incluiria e criaria rolagem horizontal) */
+    width: 100cqw;
+    margin-left: calc(50% - 50cqw);
+    padding-left: clamp(16px, 4cqw, 64px);   /* texto mais perto da borda esquerda */
+    padding-right: max(18px, calc(50cqw - 532px));
+}
+body { container-type: inline-size; }   /* faz do body o container de referência do cqw acima */
+/* título direto sobre a foto: sem caixa, com sombra sutil para legibilidade */
+.hero-texto {
+    max-width: min(420px, 45%);   /* fica à esquerda e não cobre o rosto do cão, que está no centro da foto */
+    justify-self: start;
+}
+.hero .titulo-hero { font-size: clamp(28px, 5vw, 48px); text-shadow: 0 2px 10px rgba(0, 0, 0, .45); }
+.hero .titulo-hero .apoio { font-size: clamp(14px, 2.5vw, 18px); color: #FFFFFF; text-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+/* celular: texto embaixo à esquerda (o rosto fica no alto da foto); pata pequena no canto superior direito */
+@media (max-width: 560px) {
+    .hero { grid-template-columns: minmax(0, 1fr); align-items: end; padding-top: 12px; padding-bottom: 14px; }
+    .hero-arte { position: absolute; top: 12px; right: 14px; width: 40px; }
+    .hero-texto { max-width: 68%; }
+    .hero .titulo-hero .apoio { margin-top: 4px; letter-spacing: .5px; }
 }
