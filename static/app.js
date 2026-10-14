@@ -55,17 +55,75 @@ let metricasModelo = null;
 /* ---- Utilidades ---- */
 const $ = id => document.getElementById(id);
 const grade = $("grade"), info = $("info"), campo = $("campoBusca");
-const telas = { lista: $("telaLista"), produto: $("telaProduto"), emergencia: $("telaEmergencia"), recomendacao: $("telaRecomendacao"), perfil: $("telaPerfil"), mapa: $("telaMapa"),
+const telas = { lista: $("telaLista"), produto: $("telaProduto"), carrinho: $("telaCarrinho"), emergencia: $("telaEmergencia"), recomendacao: $("telaRecomendacao"), perfil: $("telaPerfil"), mapa: $("telaMapa"),
   login: $("telaLogin"), painel: $("telaPainel") };
 let termoAtual = "", ordemAtual = "preco";
 
 const fmt = v => "R$ " + v.toFixed(2).replace(".", ",");
 const num1 = v => v.toFixed(1).replace(".", ",");
 const pct = p => Math.round(p * 100) + "%";
-const iconeEntrega = e => e.startsWith("Retira") ? "🏪" : "🚚";
+const iconeEntrega = e => e.startsWith("Retira") ? ic("loja") : ic("caminhao");
 const estrelas = n => "★".repeat(n) + "☆".repeat(5 - n);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const horaAgora = () => new Date().toTimeString().slice(0, 5);
+
+/* ---- Ícones (SVG de traço, 24×24, herdam a cor do texto) — substituem os emojis da interface ---- */
+const ICONES = {
+  busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  usuario: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  grupo: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0M16 4.5a3.5 3.5 0 0 1 0 7M18 13.5a7 7 0 0 1 4 6.5"/>',
+  carrinho: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.7 12.2a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.5L21.5 8H6"/>',
+  loja: '<path d="M3 9l1.6-5h14.8L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/>',
+  caminhao: '<path d="M2 6h11v10H2zM13 9h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  ia: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  mapa: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  pulso: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+  cruz: '<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/>',
+  pata: '<circle cx="6.5" cy="10" r="2"/><circle cx="10" cy="5.5" r="2"/><circle cx="14" cy="5.5" r="2"/><circle cx="17.5" cy="10" r="2"/><path d="M7.5 17.5c0-3 2.2-5.5 4.5-5.5s4.5 2.5 4.5 5.5c0 2-1.8 3-4.5 3s-4.5-1-4.5-3z"/>',
+  voltar: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  seta: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  mais: '<path d="M12 5v14M5 12h14"/>',
+  menos: '<path d="M5 12h14"/>',
+  lixo: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+  fechar: '<path d="M6 6l12 12M18 6L6 18"/>',
+  pix: '<path d="M12 2.5l9.5 9.5-9.5 9.5L2.5 12z"/><path d="M8.5 12l3.5-3.5 3.5 3.5-3.5 3.5z"/>',
+  cartao: '<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/>',
+  dinheiro: '<rect x="2" y="6" width="20" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>',
+  telefone: '<path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 5a2 2 0 0 1 2-2z"/>',
+  relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  estetoscopio: '<path d="M6 3v6a5 5 0 0 0 10 0V3M11 14v2a5 5 0 0 0 10 0v-1"/><circle cx="21" cy="13" r="2"/>',
+  cadeado: '<rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  alerta: '<path d="M12 3l10 18H2zM12 10v5M12 18h.01"/>',
+  gps: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+  carro: '<path d="M5 16V12l2-5h10l2 5v4zM3 12h18"/><circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/>',
+  globo: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  frasco: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7 15h10"/>',
+  recibo: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/>',
+  alvo: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  grafico: '<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
+  gota: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
+  vento: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h7"/>',
+  raio: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  termometro: '<path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/>',
+};
+const ic = nome => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + (ICONES[nome] || "") + '</svg>';
+document.querySelectorAll("[data-ic]").forEach(el => el.insertAdjacentHTML("afterbegin", ic(el.dataset.ic)));   // ícones do index.html
+
+/* A salsicha da marca, de perfil: o corpo estica conforme `progresso` (0 a 1) — usada no frete grátis do carrinho. */
+function salsicha(progresso, rotulo) {
+  const L = Math.round(24 + 196 * Math.min(1, Math.max(0, progresso)));   // comprimento do corpo
+  return '<svg class="salsicha" viewBox="0 0 ' + (L + 92) + ' 66" role="img" aria-label="' + esc(rotulo) + '">' +
+    '<rect x="17" y="40" width="8" height="18" rx="4" class="s-pata"/><rect x="31" y="40" width="8" height="18" rx="4" class="s-pata"/>' +
+    '<rect x="' + (L + 18) + '" y="40" width="8" height="18" rx="4" class="s-pata"/><rect x="' + (L + 32) + '" y="40" width="8" height="18" rx="4" class="s-pata"/>' +
+    '<path d="M16 32 Q3 24 7 9" class="s-rabo"/>' +
+    '<rect x="11" y="24" width="' + (L + 34) + '" height="24" rx="12" class="s-corpo"/>' +
+    '<g transform="translate(' + (L + 28) + ' 3)">' +
+      '<path d="M2 27 Q-1 8 17 6 Q29 4 34 13 L51 19 Q58 22 54 28 Q48 33 31 31 Q15 37 2 27 Z" class="s-corpo"/>' +
+      '<circle cx="53.5" cy="22.5" r="3.4" class="s-olho"/><circle cx="23" cy="14" r="2.5" class="s-olho"/>' +
+      '<path d="M11 9 Q1 13 4 31 Q13 35 17 16 Z" class="s-orelha"/>' +
+    '</g></svg>';
+}
 
 function toast(msg, ms = 2600) {
   const t = $("toast"); t.textContent = msg; t.classList.remove("oculto");
@@ -92,6 +150,7 @@ async function carregarDados() {
       catalogo.adicionar(new Oferta(o.id, produtos[o.produto.id], lojas[o.loja.id], o.preco, o.entrega));
     });
     render();
+    if (telas.carrinho.style.display === "block") renderCarrinho();   // o carrinho depende do catálogo carregado
   } catch (e) {
     info.textContent = "";
     grade.innerHTML = '<div class="aviso-erro" style="grid-column:1/-1">' + MSG_SEM_API + '</div>';
@@ -122,8 +181,8 @@ function render() {
 
   res.forEach(o => {
     let badges = "";
-    if (o === menor) badges += '<span class="badge verde">Menor preço</span>';
-    if (o === perto) badges += '<span class="badge azul">Mais perto</span>';
+    if (o === menor) badges += '<span class="badge b-preco">Menor preço</span>';
+    if (o === perto) badges += '<span class="badge b-perto">Mais perto</span>';
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML =
@@ -155,33 +214,33 @@ function abrirProduto(o) {
   const outras = catalogo.ofertasDoProduto(prod).filter(x => x !== o).sort((a, b) => a.preco - b.preco);
   const outrasHtml = outras.length ? '<div class="outras"><h3>Outras lojas com este produto</h3>' +
     outras.map((x, i) => '<div class="oferta-lin" data-idx="' + i + '"><div class="mini">' + ILUSTRACOES[x.produto.img] + '</div>' +
-      '<div class="ol-nome">' + esc(x.loja.nome) + '<small>📍 ' + num1(x.loja.distanciaKm) + ' km · ' + esc(x.loja.endereco) + '</small></div>' +
+      '<div class="ol-nome">' + esc(x.loja.nome) + '<small>' + ic("mapa") + ' ' + num1(x.loja.distanciaKm) + ' km · ' + esc(x.loja.endereco) + '</small></div>' +
       '<div class="ol-preco">' + fmt(x.preco) + '</div></div>').join("") + '</div>' : "";
 
   telas.produto.innerHTML =
-    '<button class="voltar" id="btVoltar">← Voltar aos resultados</button>' +
+    '<button class="voltar" id="btVoltar">' + ic("voltar") + ' Voltar aos resultados</button>' +
     '<div class="det-img">' + ILUSTRACOES[prod.img] + '</div>' +
     '<p class="det-cat">' + esc(prod.categoria) + '</p>' +
     '<h2 class="det-titulo">' + esc(prod.nome) + '</h2>' +
     '<p class="det-aval">★ ' + num1(media) + ' <span class="qtd">(' + prod.comentarios.length + ' avaliações)</span></p>' +
     '<p class="det-preco">' + fmt(o.preco) + '</p>' +
     '<div class="secao"><h3>Vendido por</h3><p><b>' + esc(o.loja.nome) + '</b> · ★ ' + num1(o.loja.nota) + '</p>' +
-      '<p class="local">📍 ' + esc(o.loja.endereco) + ' — a ' + num1(o.loja.distanciaKm) + ' km de você</p></div>' +
+      '<p class="local">' + ic("mapa") + ' ' + esc(o.loja.endereco) + ' — a ' + num1(o.loja.distanciaKm) + ' km de você</p></div>' +
     '<div class="opcoes">' +
-      '<div class="opcao"><h4>🏪 Retirar na loja</h4><p class="destaque">Retire hoje</p><p>' + esc(o.loja.endereco) + '</p><p>A ' + num1(o.loja.distanciaKm) + ' km (~' + o.tempoRetirada() + ')</p><p>Sem custo de entrega</p></div>' +
-      '<div class="opcao"><h4>🚚 Receber em casa</h4><p class="destaque">Chega em ' + o.prazoEntrega() + '</p><p>Frete: ' + freteTxt + '</p>' +
+      '<div class="opcao"><h4>' + ic("loja") + ' Retirar na loja</h4><p class="destaque">Retire hoje</p><p>' + esc(o.loja.endereco) + '</p><p>A ' + num1(o.loja.distanciaKm) + ' km (~' + o.tempoRetirada() + ')</p><p>Sem custo de entrega</p></div>' +
+      '<div class="opcao"><h4>' + ic("caminhao") + ' Receber em casa</h4><p class="destaque">Chega em ' + o.prazoEntrega() + '</p><p>Frete: ' + freteTxt + '</p>' +
         (frete === 0 ? '<p>Frete grátis acima de R$ 100</p>' : '<p>Calculado pela distância da loja</p>') + '</div>' +
     '</div>' +
-    '<div class="acoes"><button class="comprar" id="btComprar">Comprar agora</button><button class="carrinho" id="btCarrinho">Adicionar ao carrinho</button></div>' +
-    '<p class="explica">🛒 Cada compra é gravada no banco e passa a fazer parte do seu histórico — é esse dado que alimenta a recomendação da IA.</p>' +
+    '<div class="acoes"><button class="comprar" id="btComprar">Comprar agora</button><button class="carrinho" id="btCarrinho">' + ic("carrinho") + ' Adicionar ao carrinho</button></div>' +
+    '<p class="explica">' + ic("carrinho") + ' Cada compra é gravada no banco e passa a fazer parte do seu histórico — é esse dado que alimenta a recomendação da IA.</p>' +
     '<div class="abas"><button class="aba ativa" data-aba="desc">Descrição</button><button class="aba" data-aba="carac">Características</button><button class="aba" data-aba="aval">Avaliações (' + prod.comentarios.length + ')</button></div>' +
     '<div class="painel" id="painel-desc"><p class="secao" style="margin:0">' + esc(prod.descricao) + '</p></div>' +
     '<div class="painel oculto" id="painel-carac">' + tabelaCarac + '</div>' +
     '<div class="painel oculto" id="painel-aval">' + painelAval + '</div>' + outrasHtml;
 
   $("btVoltar").addEventListener("click", () => mostrar("lista"));
-  $("btComprar").addEventListener("click", () => comprar(o));
-  $("btCarrinho").addEventListener("click", () => { qtdCarrinho++; atualizarCarrinho(); toast("Item adicionado ao carrinho (simulação)."); });
+  $("btComprar").addEventListener("click", () => { adicionarAoCarrinho(o); abrirCarrinho(); });
+  $("btCarrinho").addEventListener("click", () => { adicionarAoCarrinho(o); toast(prod.nome + " foi para o carrinho."); });
   telas.produto.querySelectorAll(".oferta-lin").forEach((el, i) => el.addEventListener("click", () => abrirProduto(outras[i])));
   telas.produto.querySelectorAll(".aba").forEach(b => b.addEventListener("click", () => {
     telas.produto.querySelectorAll(".aba").forEach(x => x.classList.remove("ativa"));
@@ -189,16 +248,6 @@ function abrirProduto(o) {
     b.classList.add("ativa"); telas.produto.querySelector("#painel-" + b.dataset.aba).classList.remove("oculto");
   }));
   mostrar("produto");
-}
-
-async function comprar(o) {
-  const bt = $("btComprar"); bt.disabled = true; bt.textContent = "Registrando…";
-  try {
-    const r = await api("/api/compras", { method: "POST", body: JSON.stringify({ tutor_id: TUTOR_ID, oferta_id: o.id }) });
-    const f = r.historico.features;
-    toast("✅ Compra registrada em " + o.loja.nome + ". Histórico: " + r.historico.total_compras_janela + " compras nos últimos 90 dias (" + f.compras_mes + "/mês).", 4000);
-  } catch (e) { toast("Erro ao registrar compra: " + e.message); }
-  bt.disabled = false; bt.textContent = "Comprar agora";
 }
 
 /* ================= PERFIL (tutor + pet) ================= */
@@ -243,15 +292,15 @@ function renderPerfil() {
   const cli = ehCliente();
   telas.perfil.innerHTML =
     '<div class="perfil-topo"><div class="foto-perfil" id="fotoPet">' + p.foto + '</div><p>Toque na foto para trocar</p></div>' +
-    (cli ? '<div class="aviso lgpd">🔒 <b>Dados fictícios.</b> CPF e informações de saúde deste projeto acadêmico são fictícios — não informe dados reais (LGPD).</div>'
+    (cli ? '<div class="aviso lgpd">' + ic("cadeado") + ' <b>Dados fictícios.</b> CPF e informações de saúde deste projeto acadêmico são fictícios — não informe dados reais (LGPD).</div>'
          : '<div class="aviso lgpd">Você está no <b>modo demonstração</b>: o perfil fica salvo só neste navegador. <a href="#" id="lnkCriarConta">Crie uma conta</a> para salvar no banco.</div>') +
-    '<div class="bloco"><h3>👤 Tutor</h3><div class="form-grid">' +
+    '<div class="bloco"><h3>' + ic("usuario") + ' Tutor</h3><div class="form-grid">' +
       '<div><label class="rotulo">Nome</label><input class="campo" id="pNome" value="' + esc(p.nome) + '"></div>' +
       '<div><label class="rotulo">E-mail' + (cli ? ' (login)' : '') + '</label><input class="campo" id="pEmail" value="' + esc(p.email) + '"' + (cli ? ' readonly' : '') + '></div>' +
       '<div><label class="rotulo">Telefone</label><input class="campo" id="pTel" value="' + esc(p.telefone) + '"></div>' +
       '<div><label class="rotulo">Endereço</label><input class="campo" id="pEnd" value="' + esc(p.endereco) + '"></div>' +
       (cli ? '<div><label class="rotulo">CPF (fictício)</label><input class="campo" value="' + esc(p.cpf) + '" readonly></div>' : '') + '</div></div>' +
-    '<div class="bloco"><h3>🐾 Pet</h3><div class="form-grid">' +
+    '<div class="bloco"><h3>' + ic("pata") + ' Pet</h3><div class="form-grid">' +
       '<div><label class="rotulo">Nome do pet</label><input class="campo" id="pPet" value="' + esc(p.petNome) + '"></div>' +
       '<div><label class="rotulo">Espécie</label><select class="campo" id="pEsp">' + opt("cao", p.especie, "Cão") + opt("gato", p.especie, "Gato") + '</select></div>' +
       '<div><label class="rotulo">Idade (anos)</label><input class="campo" id="pIdade" type="number" min="0" max="25" step="0.5" value="' + p.idade + '"></div>' +
@@ -260,7 +309,7 @@ function renderPerfil() {
       '<label class="rotulo">Problemas / observações de saúde (fictícios)</label><textarea class="campo" id="pObs" rows="2" placeholder="ex.: alergia alimentar, artrose">' + esc(p.obs) + '</textarea>' +
       '<p class="explica">Espécie, idade e porte entram como variáveis do modelo de recomendação.</p></div>' +
     htmlLocalizacao(renderPerfil) +
-    '<div class="bloco" id="blocoHist"><h3>🛒 Histórico de compras <span class="rot-db">consulta ao banco</span></h3><p class="origem">últimos 90 dias · tabela compras do SQLite</p><p class="vazio-clin">Carregando…</p></div>' +
+    '<div class="bloco" id="blocoHist"><h3>' + ic("carrinho") + ' Histórico de compras <span class="rot-db">consulta ao banco</span></h3><p class="origem">últimos 90 dias · tabela compras do SQLite</p><p class="vazio-clin">Carregando…</p></div>' +
     '<button class="btn-prim" id="btSalvarPerfil">Salvar perfil</button>';
 
   $("fotoPet").addEventListener("click", () => { const f = ["🐶", "🐱", "🐕", "🐈", "🐾"]; p.foto = f[(f.indexOf(p.foto) + 1) % f.length]; $("fotoPet").textContent = p.foto; });
@@ -294,7 +343,7 @@ const NOME_SIT = Object.fromEntries(SITUACOES);
 function renderRecomendacao(situacaoInicial) {
   const p = lerPerfil();
   telas.recomendacao.innerHTML =
-    '<h2 class="det-titulo">🤖 Que atendimento o ' + esc(p.petNome) + ' precisa?</h2>' +
+    '<h2 class="det-titulo">' + ic("ia") + ' Que atendimento o ' + esc(p.petNome) + ' precisa?</h2>' +
     '<p class="secao" style="margin:6px 0 0">O modelo de IA combina o perfil do pet, a situação relatada e o <b>seu histórico de compras na loja</b> para indicar a especialidade veterinária. Depois, o banco lista as clínicas abertas.</p>' +
     '<div class="bloco"><div class="form-grid">' +
       '<div><label class="rotulo">Espécie</label><select class="campo" id="rEsp"><option value="cao"' + (p.especie === "cao" ? " selected" : "") + '>Cão</option><option value="gato"' + (p.especie === "gato" ? " selected" : "") + '>Gato</option></select></div>' +
@@ -339,15 +388,15 @@ function htmlIA(ia, corpo) {
 function htmlClinicas(b) {
   const lista = b.clinicas.length ? b.clinicas.map(c =>
     '<div class="clinica"><div class="cl-info"><span class="cl-nome">' + esc(c.nome) + '</span>' +
-    '<small>📍 ' + esc(c.endereco) + ' — ' + num1(c.distancia_km) + ' km</small><small>' + (c.telefone ? '📞 ' + esc(c.telefone) + ' · ' : '') + '🕒 ' + esc(txtHorario(c)) + '</small></div>' +
+    '<small>' + ic("mapa") + ' ' + esc(c.endereco) + ' — ' + num1(c.distancia_km) + ' km</small><small>' + (c.telefone ? ic("telefone") + ' ' + esc(c.telefone) + ' · ' : '') + ic("relogio") + ' ' + esc(txtHorario(c)) + '</small></div>' +
     (c.aberta_agora === true ? '<span class="tag24">' + (c.aberto_24h ? '24h' : 'aberta') + '</span>' : '<span class="tagoff">horário ?</span>') + '</div>').join("") :
     '<p class="vazio-clin">Nenhuma clínica encontrada para esse filtro às ' + b.hora_consultada + '. Tente outro horário, aumente o raio na aba Mapa ou veja as clínicas de emergência.</p>';
   const fonte = b.fonte === "osm" ? '<span class="rot-ok">dados reais · OpenStreetMap</span>' : '<span class="rot-demo">dados de demonstração</span>';
   return '<div class="bloco"><h3>Clínicas abertas às ' + b.hora_consultada + ' <span class="rot-db">consulta a dados</span> ' + fonte + '</h3>' +
     '<p class="origem">filtro: especialidade = ' + esc(b.especialidade_filtrada) + ' e horário de funcionamento · ' + esc(b.origem) + '</p>' +
     (b.aviso ? '<div class="aviso" style="margin-bottom:10px">' + esc(b.aviso) + '</div>' : '') +
-    (!temPosicaoReal() ? '<p class="explica" style="margin:0 0 10px">Para ver clínicas reais perto de você, defina sua localização na aba <b>🗺️ Mapa</b>.</p>' : '') +
-    (b.clinicas.length ? '<div id="mapaRec" class="mapa compacto"></div><p class="explica" style="margin-top:6px">📍 Toque em uma clínica no mapa para ver telefone, horário e a rota.</p>' : '') + lista + '</div>';
+    (!temPosicaoReal() ? '<p class="explica" style="margin:0 0 10px">Para ver clínicas reais perto de você, defina sua localização na aba <b>' + ic("mapa") + ' Mapa</b>.</p>' : '') +
+    (b.clinicas.length ? '<div id="mapaRec" class="mapa compacto"></div><p class="explica" style="margin-top:6px">' + ic("mapa") + ' Toque em uma clínica no mapa para ver telefone, horário e a rota.</p>' : '') + lista + '</div>';
 }
 
 function htmlRodapeModelo() {
@@ -359,17 +408,17 @@ function htmlRodapeModelo() {
 /* ================= EMERGÊNCIA (primeiros socorros + clínicas) ================= */
 const vetFamilia = { nome: "Dra. Marina Alves", clinica: "Clínica VidaPet", telefone: "(19) 99999-0001", distanciaKm: 0.6 };
 const primeirosSocorros = [
-  { id: "engasgo", icone: "😮‍💨", titulo: "Engasgo",
+  { id: "engasgo", icone: "vento", titulo: "Engasgo",
     passos: ["Mantenha a calma e contenha o animal com cuidado para não se machucar.", "Abra a boca e verifique se o objeto está visível; retire apenas se conseguir alcançá-lo sem empurrar.", "Em cães pequenos, segure-o de cabeça para baixo por instantes; em cães grandes, eleve as patas traseiras.", "Se não resolver em segundos, leve imediatamente ao veterinário."],
     alerta: "Não coloque a mão fundo na garganta às cegas — você pode empurrar o objeto ainda mais." },
-  { id: "sangramento", icone: "🩹", titulo: "Sangramento / corte",
+  { id: "sangramento", icone: "gota", titulo: "Sangramento / corte",
     passos: ["Pressione o local com um pano limpo ou gaze por alguns minutos.", "Se encharcar, não retire o pano: coloque outro por cima e continue pressionando.", "Mantenha o animal o mais calmo e imóvel possível.", "Procure atendimento se o sangramento for intenso ou não parar."], alerta: "" },
-  { id: "toxico", icone: "☠️", titulo: "Ingestão de algo tóxico",
+  { id: "toxico", icone: "frasco", titulo: "Ingestão de algo tóxico",
     passos: ["Afaste o animal da substância e tente identificar o que foi ingerido.", "NÃO induza o vômito sem orientação do veterinário.", "Guarde a embalagem ou o rótulo do produto para mostrar ao profissional.", "Ligue para o veterinário ou vá à clínica imediatamente."],
     alerta: "Alguns produtos causam mais dano se vomitados — só induza o vômito se o veterinário orientar." },
-  { id: "convulsao", icone: "⚡", titulo: "Convulsão",
+  { id: "convulsao", icone: "raio", titulo: "Convulsão",
     passos: ["Afaste móveis e objetos ao redor para o animal não se machucar.", "Não coloque a mão na boca dele.", "Observe e anote quanto tempo dura a crise.", "Depois da crise, deixe-o em ambiente calmo e procure o veterinário."], alerta: "" },
-  { id: "insolacao", icone: "🌡️", titulo: "Superaquecimento (insolação)",
+  { id: "insolacao", icone: "termometro", titulo: "Superaquecimento (insolação)",
     passos: ["Leve o animal para um local fresco e à sombra.", "Molhe o corpo com água em temperatura ambiente (nunca gelada).", "Ofereça água fresca em pequena quantidade.", "Procure o veterinário — insolação é uma emergência."],
     alerta: "Água muito gelada pode causar choque térmico; use água natural." },
 ];
@@ -384,11 +433,11 @@ function wireEmg() {
 
 function renderEmergenciaHome() {
   tEmg.innerHTML =
-    '<div class="aviso">⚠️ As orientações abaixo são educativas e não substituem o atendimento veterinário. Em caso de emergência, procure um profissional.</div>' +
-    '<div class="sos-card"><h3>🚑 Emergência veterinária</h3><p>Seu pet está passando mal? Acione o veterinário da família ou encontre a clínica mais próxima.</p>' +
+    '<div class="aviso">' + ic("alerta") + ' As orientações abaixo são educativas e não substituem o atendimento veterinário. Em caso de emergência, procure um profissional.</div>' +
+    '<div class="sos-card"><h3>' + ic("pulso") + ' Emergência veterinária</h3><p>Seu pet está passando mal? Acione o veterinário da família ou encontre a clínica mais próxima.</p>' +
       '<button class="btn-sos" data-sos>Acionar veterinário da família</button><button class="btn-sec" data-clinicas>Ver clínicas próximas</button></div>' +
     '<h3 class="emg-h3">Primeiros socorros — o que fazer</h3><div class="sit-lista">' +
-      primeirosSocorros.map(s => '<div class="sit-item" data-id="' + s.id + '"><span class="ic">' + s.icone + '</span><span class="nm">' + s.titulo + '</span></div>').join('') + '</div>';
+      primeirosSocorros.map(s => '<div class="sit-item" data-id="' + s.id + '"><span class="sit-ic">' + ic(s.icone) + '</span><span class="nm">' + s.titulo + '</span></div>').join('') + '</div>';
   wireEmg();
   tEmg.querySelectorAll(".sit-item").forEach(el => el.addEventListener("click", () => renderSituacao(el.dataset.id)));
 }
@@ -396,11 +445,11 @@ function renderEmergenciaHome() {
 function renderSituacao(id) {
   const s = primeirosSocorros.find(x => x.id === id);
   tEmg.innerHTML =
-    '<button class="voltar" id="btVoltarEmg">← Voltar</button><h2 class="det-titulo">' + s.icone + ' ' + s.titulo + '</h2>' +
+    '<button class="voltar" id="btVoltarEmg">' + ic("voltar") + ' Voltar</button><h2 class="det-titulo">' + ic(s.icone) + ' ' + s.titulo + '</h2>' +
     '<ol class="passos">' + s.passos.map(p => '<li>' + p + '</li>').join('') + '</ol>' +
-    (s.alerta ? '<div class="alerta-passo">⚠️ ' + s.alerta + '</div>' : '') +
+    (s.alerta ? '<div class="alerta-passo">' + ic("alerta") + ' ' + s.alerta + '</div>' : '') +
     '<button class="btn-sos" data-sos style="margin-top:18px">Acionar veterinário da família</button>' +
-    '<button class="btn-sec" data-rec="' + s.id + '">🤖 Ver recomendação da IA para esta situação</button>' +
+    '<button class="btn-sec" data-rec="' + s.id + '">' + ic("ia") + ' Ver recomendação da IA para esta situação</button>' +
     '<button class="btn-sec" data-clinicas>Ver clínicas próximas</button>';
   wireEmg();
 }
@@ -408,7 +457,7 @@ function renderSituacao(id) {
 function renderSOS() {
   const p = lerPerfil();
   tEmg.innerHTML =
-    '<button class="voltar" id="btVoltarEmg">← Voltar</button><h2 class="det-titulo">🚑 Acionar veterinário</h2>' +
+    '<button class="voltar" id="btVoltarEmg">' + ic("voltar") + ' Voltar</button><h2 class="det-titulo">' + ic("pulso") + ' Acionar veterinário</h2>' +
     '<p class="secao" style="margin:8px 0 0">Envie um alerta para <b>' + vetFamilia.nome + '</b> (' + vetFamilia.clinica + ') com as primeiras informações. Ela poderá ir até você.</p>' +
     '<label class="rotulo">Nome do pet</label><input class="campo" id="fPet" value="' + esc(p.petNome) + '">' +
     '<label class="rotulo">Espécie</label><select class="campo" id="fEspecie"><option' + (p.especie === "cao" ? " selected" : "") + '>Cão</option><option' + (p.especie === "gato" ? " selected" : "") + '>Gato</option><option>Outro</option></select>' +
@@ -422,7 +471,7 @@ function enviarSOS() {
   const pet = $("fPet").value || "Seu pet", esp = $("fEspecie").value, sit = $("fSituacao").value, obs = $("fObs").value || "—";
   const tempo = Math.round(10 + vetFamilia.distanciaKm * 4);
   tEmg.innerHTML =
-    '<div class="confirma"><div class="check">✅</div><h3>Alerta enviado</h3><p class="secao" style="margin:0 auto;max-width:440px"><b>' + vetFamilia.nome + '</b> (' + vetFamilia.clinica + ') foi notificada e está a caminho.<br>Chegada estimada: ~' + tempo + ' min.</p></div>' +
+    '<div class="confirma"><div class="check">' + ic("check") + '</div><h3>Alerta enviado</h3><p class="secao" style="margin:0 auto;max-width:440px"><b>' + vetFamilia.nome + '</b> (' + vetFamilia.clinica + ') foi notificada e está a caminho.<br>Chegada estimada: ~' + tempo + ' min.</p></div>' +
     '<div class="secao"><h3>Informações enviadas ao veterinário</h3><table class="tabela"><tr><td class="rot">Pet</td><td>' + esc(pet) + ' (' + esc(esp) + ')</td></tr><tr><td class="rot">Situação</td><td>' + esc(sit) + '</td></tr><tr><td class="rot">Observações</td><td>' + esc(obs) + '</td></tr></table></div>' +
     '<button class="btn-sec" data-clinicas>Caso não seja possível, ver clínicas próximas</button><button class="btn-sec" id="btVoltarEmg">Voltar ao início</button>';
   wireEmg();
@@ -430,7 +479,7 @@ function enviarSOS() {
 
 async function renderClinicasEmergencia() {
   const hora = horaAgora();
-  tEmg.innerHTML = '<button class="voltar" id="btVoltarEmg">← Voltar</button><h2 class="det-titulo">🏥 Clínicas de emergência abertas agora <span class="rot-db">consulta ao banco</span></h2>' +
+  tEmg.innerHTML = '<button class="voltar" id="btVoltarEmg">' + ic("voltar") + ' Voltar</button><h2 class="det-titulo">' + ic("cruz") + ' Clínicas de emergência abertas agora <span class="rot-db">consulta ao banco</span></h2>' +
     '<p class="secao" style="margin:8px 0 14px">Filtro: especialidade “emergencia”, abertas às ' + hora + ', ordenadas pela distância.</p><div id="mapaEmg" class="mapa compacto"></div><div id="listaClin" style="margin-top:12px"><p class="vazio-clin">Carregando…</p></div>';
   wireEmg();
   try {
@@ -442,7 +491,7 @@ async function renderClinicasEmergencia() {
     $("listaClin").innerHTML = (r.meta.aviso ? '<div class="aviso" style="margin-bottom:10px">' + esc(r.meta.aviso) + '</div>' : '') +
       '<p class="origem">' + (r.meta.fonte === "osm" ? 'dados reais · OpenStreetMap · raio ' + r.meta.raio_km + ' km' : 'dados de demonstração — defina sua localização na aba Mapa') + '</p>' +
       cl.map(c => '<div class="clinica"><div class="cl-info"><span class="cl-nome">' + esc(c.nome) + (c.fonte === "demo" && c.id === 1 ? ' · sua clínica' : '') + '</span>' +
-      '<small>📍 ' + esc(c.endereco) + ' — ' + num1(c.distancia_km) + ' km</small><small>' + (c.telefone ? '📞 <a href="tel:' + esc(c.telefone.replace(/\s/g, "")) + '">' + esc(c.telefone) + '</a> · ' : '') + '🕒 ' + esc(txtHorario(c)) + '</small></div>' +
+      '<small>' + ic("mapa") + ' ' + esc(c.endereco) + ' — ' + num1(c.distancia_km) + ' km</small><small>' + (c.telefone ? ic("telefone") + ' <a href="tel:' + esc(c.telefone.replace(/\s/g, "")) + '">' + esc(c.telefone) + '</a> · ' : '') + ic("relogio") + ' ' + esc(txtHorario(c)) + '</small></div>' +
       (c.aberta_agora === true ? '<span class="tag24">' + (c.aberto_24h ? '24h' : 'aberta') + '</span>' : '<span class="tagoff">horário ?</span>') + '</div>').join('');
   } catch { $("listaClin").innerHTML = '<div class="aviso-erro">' + MSG_SEM_API + '</div>'; }
 }
@@ -472,7 +521,7 @@ function usarGPS(aoTerminar) {
   toast("Obtendo sua localização…");
   navigator.geolocation.getCurrentPosition(async pos => {
     const p = { lat: +pos.coords.latitude.toFixed(6), lon: +pos.coords.longitude.toFixed(6), fonte: "gps", rotulo: "Minha localização (GPS)", precisao_m: Math.round(pos.coords.accuracy) };
-    salvarPosicao(p); toast("📍 Localização obtida (precisão ~" + p.precisao_m + " m). Buscando clínicas reais…");
+    salvarPosicao(p); toast("Localização obtida (precisão ~" + p.precisao_m + " m). Buscando clínicas reais…");
     aoTerminar && aoTerminar();
   }, err => {
     toast(err.code === 1 ? "Permissão de localização negada. Digite um endereço abaixo." : "Não foi possível obter a localização (" + err.message + "). Digite um endereço.", 4500);
@@ -484,18 +533,18 @@ async function usarEndereco(q, aoTerminar) {
   try {
     const r = await api("/api/geocodificar?q=" + encodeURIComponent(q.trim()));
     salvarPosicao({ lat: r.lat, lon: r.lon, fonte: "endereco", rotulo: r.rotulo });
-    toast("📍 " + r.rotulo.split(",").slice(0, 3).join(","), 3500);
+    toast("Localização: " + r.rotulo.split(",").slice(0, 3).join(","), 3500);
     aoTerminar && aoTerminar();
   } catch (e) { toast("Endereço não encontrado: " + e.message, 4000); }
 }
 
 function htmlLocalizacao(aoMudar) {
   const p = lerPosicao();
-  const html = '<div class="bloco loc"><h3>📍 Sua localização ' + (p ? '<span class="rot-ok">real · ' + (p.fonte === "gps" ? "GPS" : "endereço") + '</span>' : '<span class="rot-demo">demonstração</span>') + '</h3>' +
+  const html = '<div class="bloco loc"><h3>' + ic("mapa") + ' Sua localização ' + (p ? '<span class="rot-ok">real · ' + (p.fonte === "gps" ? "GPS" : "endereço") + '</span>' : '<span class="rot-demo">demonstração</span>') + '</h3>' +
     '<p class="origem">' + (p ? esc(p.rotulo) + ' · ' + p.lat + ', ' + p.lon : 'Nenhuma localização definida: o mapa usa um endereço fictício em Sumaré-SP e clínicas de demonstração.') + '</p>' +
-    '<div class="mapa-filtros"><button class="btn-sec" id="btGPS">📡 Usar meu GPS</button>' +
+    '<div class="mapa-filtros"><button class="btn-sec" id="btGPS">' + ic("gps") + ' Usar meu GPS</button>' +
     '<div class="grupo-end"><input class="campo" id="inEnd" placeholder="ou digite endereço / cidade"><button class="btn-sec" id="btEnd">Definir</button></div>' +
-    (p ? '<button class="btn-sec" id="btLimparPos" title="Voltar aos dados de demonstração">✕</button>' : '') + '</div></div>';
+    (p ? '<button class="btn-sec" id="btLimparPos" title="Voltar aos dados de demonstração">' + ic("fechar") + '</button>' : '') + '</div></div>';
   setTimeout(() => {
     const g = $("btGPS"), e = $("btEnd"), i = $("inEnd"), l = $("btLimparPos");
     if (g) g.onclick = () => usarGPS(aoMudar);
@@ -506,16 +555,16 @@ function htmlLocalizacao(aoMudar) {
   return html;
 }
 const pin = (emoji, classe) => L.divIcon({ className: "pin " + (classe || ""), html: emoji, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -18] });
-const linkRota = c => tutorPos ? '<a href="https://www.google.com/maps/dir/?api=1&origin=' + tutorPos.lat + ',' + tutorPos.lon + '&destination=' + c.lat + ',' + c.lon + '&travelmode=driving" target="_blank" rel="noopener">🚗 Como chegar</a>' : '';
+const linkRota = c => tutorPos ? '<a href="https://www.google.com/maps/dir/?api=1&origin=' + tutorPos.lat + ',' + tutorPos.lon + '&destination=' + c.lat + ',' + c.lon + '&travelmode=driving" target="_blank" rel="noopener">' + ic("carro") + ' Como chegar</a>' : '';
 
 const txtHorario = c => c.aberto_24h ? 'aberta 24h' : (c.horario_texto || (c.abre ? c.abre + '–' + c.fecha : 'horário não informado'));
 const txtAberta = c => c.aberta_agora === true ? ' · <span style="color:#12805c">aberta agora</span>' : c.aberta_agora === false ? ' · <span style="color:#b23636">fechada agora</span>' : '';
 function popupClinica(c) {
-  return '<b>' + esc(c.nome) + '</b><br>📍 ' + esc(c.endereco) + ' — <b>' + num1(c.distancia_km) + ' km</b>' +
-    (c.telefone ? '<br>📞 <a href="tel:' + esc(c.telefone.replace(/\s/g, "")) + '">' + esc(c.telefone) + '</a>' : '') +
-    (c.site ? '<br>🌐 <a href="' + esc(c.site) + '" target="_blank" rel="noopener">site</a>' : '') +
-    '<br>🕒 ' + esc(txtHorario(c)) + txtAberta(c) +
-    '<br>🩺 ' + c.especialidades.map(e => ESPECIALIDADES_NOMES[e] || e).join(", ") + (c.especialidade_inferida ? ' <small>(inferida pelo nome)</small>' : '') +
+  return '<b>' + esc(c.nome) + '</b><br>' + ic("mapa") + ' ' + esc(c.endereco) + ' — <b>' + num1(c.distancia_km) + ' km</b>' +
+    (c.telefone ? '<br>' + ic("telefone") + ' <a href="tel:' + esc(c.telefone.replace(/\s/g, "")) + '">' + esc(c.telefone) + '</a>' : '') +
+    (c.site ? '<br>' + ic("globo") + ' <a href="' + esc(c.site) + '" target="_blank" rel="noopener">site</a>' : '') +
+    '<br>' + ic("relogio") + ' ' + esc(txtHorario(c)) + txtAberta(c) +
+    '<br>' + ic("estetoscopio") + ' ' + c.especialidades.map(e => ESPECIALIDADES_NOMES[e] || e).join(", ") + (c.especialidade_inferida ? ' <small>(inferida pelo nome)</small>' : '') +
     '<br>' + linkRota(c) + (c.osm_url ? ' · <a href="' + esc(c.osm_url) + '" target="_blank" rel="noopener">ver no OSM</a>' : '');
 }
 
@@ -530,14 +579,14 @@ function montarMapa(el, clinicas, opcoes = {}) {
   const pontos = [];
   if (tutorPos) {
     const p = [tutorPos.lat, tutorPos.lon]; pontos.push(p);
-    L.marker(p, { icon: pin("📍", "voce"), zIndexOffset: 1000 }).addTo(m).bindPopup("<b>Você está aqui</b><br>" + esc(tutorPos.rotulo || lerPerfil().endereco));
+    L.marker(p, { icon: pin(ic("mapa"), "voce"), zIndexOffset: 1000 }).addTo(m).bindPopup("<b>Você está aqui</b><br>" + esc(tutorPos.rotulo || lerPerfil().endereco));
     [1, 2].forEach(km => L.circle(p, { radius: km * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--texto").trim(), weight: 2, dashArray: "6 6", fill: false, opacity: .75 }).addTo(m));
   }
   clinicas.forEach(c => {
     const p = [c.lat, c.lon]; pontos.push(p);
     const fechada = c.aberta_agora === false;
     if (!c.lat || !c.lon) return;
-    const mk = L.marker(p, { icon: pin("🏥", (fechada ? "fechada" : "") + (c.id === opcoes.destaque ? " destaque" : "")) }).addTo(m).bindPopup(popupClinica(c));
+    const mk = L.marker(p, { icon: pin(ic("cruz"), (fechada ? "fechada" : "") + (c.id === opcoes.destaque ? " destaque" : "")) }).addTo(m).bindPopup(popupClinica(c));
     el._marcadores[c.id] = mk;
   });
   if (pontos.length) m.fitBounds(pontos, { padding: [36, 36], maxZoom: 15 }); else m.setView([-22.8219, -47.2669], 14);
@@ -548,7 +597,7 @@ const ESPECIALIDADES_NOMES = { emergencia: "Emergência", dermatologia: "Dermato
 
 function renderMapa() {
   telas.mapa.innerHTML =
-    '<h2 class="det-titulo">🗺️ Clínicas perto de você <span class="rot-db">consulta ao banco</span></h2>' +
+    '<h2 class="det-titulo">' + ic("mapa") + ' Clínicas perto de você <span class="rot-db">consulta ao banco</span></h2>' +
     '<p class="secao" style="margin:6px 0 0">Com a sua localização, as clínicas vêm do <b>OpenStreetMap</b> (dados reais, mantidos por voluntários). Os filtros são consulta a dados — o mapa só desenha o resultado.</p>' +
     htmlLocalizacao(atualizarMapa) +
     '<div class="bloco"><div class="mapa-filtros">' +
@@ -581,7 +630,7 @@ async function atualizarMapa() {
     lista.innerHTML = (meta.aviso ? '<div class="aviso" style="margin-bottom:10px">' + esc(meta.aviso) + '</div>' : '') +
       '<p class="info" style="padding:0 0 8px">' + mostradas.length + ' clínica(s)' + (esp ? ' de ' + ESPECIALIDADES_NOMES[esp] : '') + (soAbertas ? ' abertas (ou sem horário informado) às ' + hora : '') + (meta.fonte === "osm" ? ' num raio de ' + meta.raio_km + ' km' : '') + ', da mais perto para a mais longe · ' + fonte + '</p>' +
       (mostradas.length ? mostradas.map(c => '<div class="clinica' + (c.aberta_agora ? '' : ' fechada-lin') + '" data-id="' + c.id + '"><div class="cl-info"><span class="cl-nome">' + esc(c.nome) + '</span>' +
-        '<small>📍 ' + esc(c.endereco) + ' — <b>' + num1(c.distancia_km) + ' km</b>' + (c.telefone ? ' · 📞 ' + esc(c.telefone) : '') + '</small><small>🩺 ' + c.especialidades.map(e => ESPECIALIDADES_NOMES[e] || e).join(", ") + (c.especialidade_inferida ? '*' : '') + ' · 🕒 ' + esc(txtHorario(c)) + '</small></div>' +
+        '<small>' + ic("mapa") + ' ' + esc(c.endereco) + ' — <b>' + num1(c.distancia_km) + ' km</b>' + (c.telefone ? ' · ' + ic("telefone") + ' ' + esc(c.telefone) : '') + '</small><small>' + ic("estetoscopio") + ' ' + c.especialidades.map(e => ESPECIALIDADES_NOMES[e] || e).join(", ") + (c.especialidade_inferida ? '*' : '') + ' · ' + ic("relogio") + ' ' + esc(txtHorario(c)) + '</small></div>' +
         (c.aberta_agora === true ? '<span class="tag24">' + (c.aberto_24h ? '24h' : 'aberta') + '</span>' : c.aberta_agora === false ? '<span class="tagoff">fechada</span>' : '<span class="tagoff">horário ?</span>') + '</div>').join("") +
         (mostradas.some(c => c.especialidade_inferida) ? '<p class="explica">* Especialidade inferida pelo nome da clínica (o OpenStreetMap não registra especialidades). Confirme por telefone.</p>' : '') :
         '<p class="vazio-clin">Nenhuma clínica com esse filtro. Desmarque "só abertas" ou mude o horário.</p>');
@@ -633,19 +682,19 @@ function cpfFicticio() {
 const mascaraCpf = v => { const d = v.replace(/\D/g, "").slice(0, 11);
   return d.replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2"); };
 
-const AVISO_LGPD = '<div class="aviso lgpd">🔒 <b>Projeto acadêmico — use apenas dados fictícios.</b> CPF e informações de saúde do pet são dados pessoais/sensíveis (LGPD): não informe dados reais. A senha é guardada só como hash.</div>';
+const AVISO_LGPD = '<div class="aviso lgpd">' + ic("cadeado") + ' <b>Projeto acadêmico — use apenas dados fictícios.</b> CPF e informações de saúde do pet são dados pessoais/sensíveis (LGPD): não informe dados reais. A senha é guardada só como hash.</div>';
 
 function renderLogin(aba = "entrar", tipo = "cliente") {
   const campo = (id, rotulo, extra = "") => '<div><label class="rotulo" for="' + id + '">' + rotulo + '</label><input class="campo" id="' + id + '" ' + extra + '></div>';
-  const acesso = '<div class="bloco"><h3>🔐 Acesso</h3><div class="form-grid">' +
+  const acesso = '<div class="bloco"><h3>' + ic("cadeado") + ' Acesso</h3><div class="form-grid">' +
     campo("cEmail", "E-mail", 'type="email" autocomplete="email" placeholder="voce@exemplo.com"') +
     campo("cSenha", "Senha (mín. 6 caracteres)", 'type="password" autocomplete="new-password"') + '</div></div>';
   const formCliente =
-    '<div class="bloco"><h3>👤 Seus dados</h3><div class="form-grid">' +
+    '<div class="bloco"><h3>' + ic("usuario") + ' Seus dados</h3><div class="form-grid">' +
       campo("cNome", "Nome completo", 'autocomplete="name"') +
       '<div><label class="rotulo" for="cCpf">CPF (fictício)</label><div class="campo-acao"><input class="campo" id="cCpf" inputmode="numeric" placeholder="000.000.000-00"><button type="button" class="btn-sec" id="btCpf" title="Gerar um CPF fictício">Gerar</button></div></div>' +
       campo("cTel", "Telefone", 'placeholder="(19) 90000-0000"') + campo("cEnd", "Endereço", 'placeholder="Rua, número · bairro"') + '</div></div>' +
-    '<div class="bloco"><h3>🐾 Seu pet</h3><div class="form-grid">' +
+    '<div class="bloco"><h3>' + ic("pata") + ' Seu pet</h3><div class="form-grid">' +
       campo("cPet", "Nome do pet") +
       '<div><label class="rotulo" for="cEsp">Espécie</label><select class="campo" id="cEsp"><option value="cao">Cão</option><option value="gato">Gato</option></select></div>' +
       campo("cRaca", "Raça", 'placeholder="ex.: SRD, Labrador, Siamês"') +
@@ -653,7 +702,7 @@ function renderLogin(aba = "entrar", tipo = "cliente") {
       '<div><label class="rotulo" for="cPorte">Porte</label><select class="campo" id="cPorte"><option value="pequeno">Pequeno</option><option value="medio" selected>Médio</option><option value="grande">Grande</option></select></div></div>' +
       '<label class="rotulo" for="cObs">Possíveis problemas / observações de saúde (fictícios)</label><textarea class="campo" id="cObs" rows="2" placeholder="ex.: alergia alimentar, artrose, otite recorrente"></textarea></div>';
   const formClinica =
-    '<div class="bloco"><h3>🏥 Dados da clínica</h3><div class="form-grid">' +
+    '<div class="bloco"><h3>' + ic("cruz") + ' Dados da clínica</h3><div class="form-grid">' +
       campo("kNome", "Nome da clínica") + campo("kTel", "Telefone", 'placeholder="(19) 3000-0000"') + '</div>' +
       '<label class="rotulo" for="kEnd">Endereço</label><input class="campo" id="kEnd" placeholder="Rua, número · bairro">' +
       '<div class="form-grid">' + campo("kAbre", "Abre às", 'type="time" value="08:00"') + campo("kFecha", "Fecha às", 'type="time" value="18:00"') + '</div>' +
@@ -663,19 +712,19 @@ function renderLogin(aba = "entrar", tipo = "cliente") {
       '<p class="explica">A clínica aparece na lista de clínicas de demonstração (posição fictícia na cidade do demo).</p></div>';
 
   telas.login.innerHTML =
-    '<div class="auth-topo"><div class="auth-logo">🐾</div><h2>Bem-vindo ao PatasPerto</h2><p>Entre com sua conta de <b>tutor</b> ou de <b>clínica</b>.</p></div>' +
+    '<div class="auth-topo"><img class="auth-logo" src="/static/img/logo.png" alt="" width="262" height="192"><h2>Bem-vindo ao PatasPerto</h2><p>Entre com sua conta de <b>tutor</b> ou de <b>clínica</b>.</p></div>' +
     '<div class="abas auth-abas"><button class="aba' + (aba === "entrar" ? " ativa" : "") + '" data-aba="entrar">Entrar</button>' +
       '<button class="aba' + (aba === "cadastro" ? " ativa" : "") + '" data-aba="cadastro">Criar conta</button></div>' +
     (aba === "entrar"
       ? '<div class="bloco"><label class="rotulo" for="lEmail">E-mail</label><input class="campo" id="lEmail" type="email" autocomplete="username">' +
           '<label class="rotulo" for="lSenha">Senha</label><input class="campo" id="lSenha" type="password" autocomplete="current-password">' +
           '<button class="btn-prim" id="btEntrar">Entrar</button><div id="authErro"></div></div>' +
-        '<div class="bloco demo-contas"><h3>🧪 Contas de demonstração <span class="rot-demo">senha demo123</span></h3>' +
-          '<button class="btn-sec" data-demo="ana.ribeiro@exemplo.com">👤 Cliente · ana.ribeiro@exemplo.com</button>' +
-          '<button class="btn-sec" data-demo="contato@vidapet.exemplo">🏥 Clínica · contato@vidapet.exemplo</button></div>'
+        '<div class="bloco demo-contas"><h3>' + ic("frasco") + ' Contas de demonstração <span class="rot-demo">senha demo123</span></h3>' +
+          '<button class="btn-sec" data-demo="ana.ribeiro@exemplo.com">' + ic("usuario") + ' Cliente · ana.ribeiro@exemplo.com</button>' +
+          '<button class="btn-sec" data-demo="contato@vidapet.exemplo">' + ic("cruz") + ' Clínica · contato@vidapet.exemplo</button></div>'
       : '<div class="tipo-conta">' +
-          '<button class="tipo-op' + (tipo === "cliente" ? " ativo" : "") + '" data-tipo="cliente"><span class="ic">🐶</span><b>Sou tutor</b><small>Compro na loja e cuido do meu pet</small></button>' +
-          '<button class="tipo-op' + (tipo === "clinica" ? " ativo" : "") + '" data-tipo="clinica"><span class="ic">🏥</span><b>Sou clínica</b><small>Vejo indicadores dos clientes</small></button></div>' +
+          '<button class="tipo-op' + (tipo === "cliente" ? " ativo" : "") + '" data-tipo="cliente"><span class="tipo-ic">' + ic("pata") + '</span><b>Sou tutor</b><small>Compro na loja e cuido do meu pet</small></button>' +
+          '<button class="tipo-op' + (tipo === "clinica" ? " ativo" : "") + '" data-tipo="clinica"><span class="tipo-ic">' + ic("cruz") + '</span><b>Sou clínica</b><small>Vejo indicadores dos clientes</small></button></div>' +
         AVISO_LGPD + (tipo === "cliente" ? formCliente : formClinica) + acesso +
         '<button class="btn-prim" id="btCadastrar">Criar conta de ' + (tipo === "cliente" ? "tutor" : "clínica") + '</button><div id="authErro"></div>') +
     '<button class="link-demo" id="btVisitante">Continuar sem conta (modo demonstração) →</button>';
@@ -714,7 +763,7 @@ function renderLogin(aba = "entrar", tipo = "cliente") {
     const bt = $("btCadastrar"); bt.disabled = true;
     try {
       const r = await api("/api/cadastro", { method: "POST", body: JSON.stringify(corpo) });
-      entrarComConta(r.conta, "✅ Conta criada! Bem-vindo(a) ao PatasPerto.");
+      entrarComConta(r.conta, "Conta criada! Bem-vindo(a) ao PatasPerto.");
     } catch (e) { erro(e.message); bt.disabled = false; }
   });
 }
@@ -722,7 +771,7 @@ function renderLogin(aba = "entrar", tipo = "cliente") {
 /* ================= PAINEL DA CLÍNICA =================
    Tudo aqui é CONSULTA/AGREGAÇÃO AO BANCO (GROUP BY em banco/consultas.py) — não é IA.
    A clínica vê só totais agregados: nenhum CPF, nome ou dado de saúde individual. */
-const NOME_ESPECIE = { cao: "🐶 Cães", gato: "🐱 Gatos" };
+const NOME_ESPECIE = { cao: "Cães", gato: "Gatos" };
 const fmtInt = n => Number(n).toLocaleString("pt-BR");
 const fmtR$ = v => "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -749,34 +798,34 @@ async function renderPainel(periodo = "mes") {
   const rotDb = '<span class="rot-db">GROUP BY</span>';
 
   telas.painel.innerHTML =
-    '<h2 class="det-titulo">🏥 ' + esc(c.nome) + ' <span class="rot-db">consulta ao banco · agregação</span></h2>' +
+    '<h2 class="det-titulo">' + ic("cruz") + ' ' + esc(c.nome) + ' <span class="rot-db">consulta ao banco · agregação</span></h2>' +
     '<p class="secao" style="margin:6px 0 0">Indicadores dos clientes do PatasPerto calculados com <b>consultas de agregação ao banco</b> (COUNT, SUM, AVG + GROUP BY) — <b>não é IA</b>. Últimos ' + d.janela_dias + ' dias.</p>' +
     '<div class="kpis">' +
-      kpi("👥", fmtInt(t.clientes), "clientes cadastrados") + kpi("🐾", fmtInt(t.pets), "pets") +
-      kpi("🛒", fmtInt(t.compras), "compras no período") + kpi("💰", fmtR$(t.faturamento), "volume em compras") +
-      kpi("🧾", fmtR$(t.ticket_medio), "ticket médio") + kpi("🩺", fmtInt(t.pets_com_obs_saude), "pets com obs. de saúde") + '</div>' +
+      kpi(ic("grupo"), fmtInt(t.clientes), "clientes cadastrados") + kpi(ic("pata"), fmtInt(t.pets), "pets") +
+      kpi(ic("carrinho"), fmtInt(t.compras), "compras no período") + kpi(ic("dinheiro"), fmtR$(t.faturamento), "volume em compras") +
+      kpi(ic("recibo"), fmtR$(t.ticket_medio), "ticket médio") + kpi(ic("estetoscopio"), fmtInt(t.pets_com_obs_saude), "pets com obs. de saúde") + '</div>' +
     '<div class="painel-grid">' +
-      '<div class="bloco"><h3>🛒 O que os clientes mais compram ' + rotDb + '</h3><p class="origem">itens vendidos por produto · GROUP BY produto</p>' +
+      '<div class="bloco"><h3>' + ic("carrinho") + ' O que os clientes mais compram ' + rotDb + '</h3><p class="origem">itens vendidos por produto · GROUP BY produto</p>' +
         d.mais_comprados.map((x, i) => barraH(x.nome, x.categoria + " · " + x.clientes + " clientes", x.itens, maxItens, fmtInt(x.itens), i === 0)).join("") + '</div>' +
-      '<div class="bloco"><h3>🐾 Espécies e raças ' + rotDb + '</h3><p class="origem">pets cadastrados · GROUP BY espécie, raça</p>' +
+      '<div class="bloco"><h3>' + ic("pata") + ' Espécies e raças ' + rotDb + '</h3><p class="origem">pets cadastrados · GROUP BY espécie, raça</p>' +
         d.especies.map((e, i) => barraH(NOME_ESPECIE[e.especie] || e.especie, "idade média " + num1(e.idade_media) + " anos", e.n, totPets, pct(e.n / totPets), i === 0)).join("") +
         '<p class="sub-tit">Raças mais frequentes</p>' +
         d.racas.map((r, i) => barraH(r.raca, NOME_ESPECIE[r.especie] || r.especie, r.n, maxRaca, fmtInt(r.n), i === 0)).join("") + '</div>' +
-      '<div class="bloco"><h3>🎯 Match categoria × espécie ' + rotDb + '</h3><p class="origem">itens por categoria dentro de cada espécie · GROUP BY espécie, categoria</p>' +
+      '<div class="bloco"><h3>' + ic("alvo") + ' Match categoria × espécie ' + rotDb + '</h3><p class="origem">itens por categoria dentro de cada espécie · GROUP BY espécie, categoria</p>' +
         Object.entries(d.match_categoria_especie).map(([esp, lista]) => '<p class="sub-tit">' + (NOME_ESPECIE[esp] || esp) + '</p>' +
           lista.map((m, i) => barraH(m.categoria, null, m.participacao, 1, pct(m.participacao) +
             ' <span class="afin' + (m.afinidade >= 1.2 ? " alta" : "") + '" title="participação na espécie ÷ participação geral">' + num1(m.afinidade) + '×</span>', i === 0)).join("")).join("") +
         '<p class="explica"><b>%</b> = fatia da categoria nas compras de quem tem aquela espécie. <b>×</b> = afinidade: quantas vezes acima (ou abaixo) da média geral a espécie compra a categoria.</p></div>' +
-      '<div class="bloco"><h3>📈 Volume de compras por período ' + rotDb + '</h3>' +
+      '<div class="bloco"><h3>' + ic("grafico") + ' Volume de compras por período ' + rotDb + '</h3>' +
         '<div class="filtros periodo"><button class="chip' + (periodo === "mes" ? " ativo" : "") + '" data-per="mes">Por mês</button><button class="chip' + (periodo === "semana" ? " ativo" : "") + '" data-per="semana">Por semana</button></div>' +
         '<div class="colunas">' + d.volume.map(v => '<div class="col" title="' + v.compras + ' compras · ' + fmtR$(v.valor) + '"><span class="col-v">' + v.compras + '</span>' +
           '<div class="col-b" style="height:' + (v.compras / maxVol * 100) + '%"></div><span class="col-r">' + v.periodo + '</span></div>').join("") + '</div>' +
         '<p class="origem" style="margin-top:8px">compras por ' + (periodo === "semana" ? "semana (início na segunda-feira)" : "mês") + ' · GROUP BY strftime(data)</p></div>' +
     '</div>' +
-    '<div class="bloco"><h3>🏥 Sua clínica <span class="rot-db">tabela clinicas</span></h3>' +
-      '<p class="local">📍 ' + esc(c.endereco) + ' · 📞 ' + esc(c.telefone) + ' · 🕘 ' + (c.aberto_24h ? "24 horas" : esc(c.abre) + "–" + esc(c.fecha)) + '</p>' +
+    '<div class="bloco"><h3>' + ic("cruz") + ' Sua clínica <span class="rot-db">tabela clinicas</span></h3>' +
+      '<p class="local">' + ic("mapa") + ' ' + esc(c.endereco) + ' · ' + ic("telefone") + ' ' + esc(c.telefone) + ' · ' + ic("relogio") + ' ' + (c.aberto_24h ? "24 horas" : esc(c.abre) + "–" + esc(c.fecha)) + '</p>' +
       '<div class="chk-grupo" style="margin-top:8px">' + c.especialidades.map(e => '<span class="tag-esp">' + (ESPECIALIDADES_NOMES[e] || esc(e)) + '</span>').join("") + '</div></div>' +
-    '<div class="aviso lgpd" style="margin-top:16px">🔒 Dados <b>fictícios</b> e <b>agregados</b>: a clínica não recebe CPF, nome nem observações de saúde de clientes individuais (LGPD).</div>';
+    '<div class="aviso lgpd" style="margin-top:16px">' + ic("cadeado") + ' Dados <b>fictícios</b> e <b>agregados</b>: a clínica não recebe CPF, nome nem observações de saúde de clientes individuais (LGPD).</div>';
 
   telas.painel.querySelectorAll("[data-per]").forEach(b => b.addEventListener("click", () => renderPainel(b.dataset.per)));
 }
@@ -805,10 +854,158 @@ const buscar = () => { termoAtual = campo.value; if (telas.lista.style.display !
 $("botaoBusca").addEventListener("click", buscar);
 campo.addEventListener("keydown", e => { if (e.key === "Enter") buscar(); });
 
-// carrinho (simulação): só um contador no cabeçalho
-let qtdCarrinho = 0;
-function atualizarCarrinho() { const q = $("qtdCarrinho"); q.textContent = qtdCarrinho; q.hidden = !qtdCarrinho; }
-$("btCarrinhoTopo").addEventListener("click", () => toast(qtdCarrinho ? "🛒 " + qtdCarrinho + " item(ns) no carrinho (simulação)." : "Seu carrinho está vazio."));
+/* ================= CARRINHO E PAGAMENTO =================
+   O carrinho fica no navegador (localStorage). Ao confirmar, POST /api/pedidos grava cada item
+   na tabela compras — o mesmo dado que alimenta a IA. O PAGAMENTO É SIMULADO (projeto acadêmico):
+   nenhum valor é cobrado e nenhum dado de cartão é pedido. */
+const FRETE_GRATIS = 100;
+const PAGAMENTO_NOME = { pix: "Pix", cartao_entrega: "cartão", dinheiro: "dinheiro" };
+let carrinho = (() => { try { return JSON.parse(localStorage.getItem("carrinho") || "[]"); } catch { return []; } })();
+const checkout = { entrega: "entrega", pagamento: "pix" };
+
+function salvarCarrinho() {
+  try { localStorage.setItem("carrinho", JSON.stringify(carrinho)); } catch {}
+  const q = $("qtdCarrinho"), n = carrinho.reduce((s, i) => s + i.qtd, 0);
+  q.textContent = n; q.hidden = !n;
+  $("btCarrinhoTopo").setAttribute("aria-label", n ? "Carrinho, " + n + " item(ns)" : "Carrinho vazio");
+}
+function adicionarAoCarrinho(o) {
+  const item = carrinho.find(i => i.oferta_id === o.id);
+  if (item) item.qtd = Math.min(20, item.qtd + 1); else carrinho.push({ oferta_id: o.id, qtd: 1 });
+  salvarCarrinho();
+  const bt = $("btCarrinhoTopo"); bt.classList.remove("pulou"); void bt.offsetWidth; bt.classList.add("pulou");
+}
+// itens com a oferta completa (descarta ofertas que saíram do catálogo)
+const itensCarrinho = () => carrinho.map(i => ({ ...i, oferta: catalogo.ofertas.find(o => o.id === i.oferta_id) })).filter(i => i.oferta);
+function totaisCarrinho(itens, entrega) {
+  const subtotal = itens.reduce((s, i) => s + i.oferta.preco * i.qtd, 0);
+  const lojas = [...new Map(itens.map(i => [i.oferta.loja.id, i.oferta.loja])).values()];
+  // mesma regra do back-end (banco/consultas.py → registrar_pedido); o valor gravado é o do servidor
+  const frete = entrega === "retirada" || subtotal >= FRETE_GRATIS ? 0 : lojas.reduce((s, l) => s + 8.90 + l.distanciaKm * 4, 0);
+  return { subtotal, frete, total: subtotal + frete, lojas, qtd: itens.reduce((s, i) => s + i.qtd, 0) };
+}
+const opcaoEscolha = (grupo, valor, icone, titulo, sub) =>
+  '<label class="op-escolha"><input type="radio" name="' + grupo + '" value="' + valor + '"' + (checkout[grupo] === valor ? ' checked' : '') + '>' +
+  ic(icone) + '<span><b>' + titulo + '</b><small>' + sub + '</small></span></label>';
+const linhasTotais = (t, entrega) =>
+  '<div class="linha"><span>Subtotal (' + t.qtd + (t.qtd > 1 ? ' itens' : ' item') + ')</span><span>' + fmt(t.subtotal) + '</span></div>' +
+  '<div class="linha"><span>Frete' + (t.frete && t.lojas.length > 1 ? ' (' + t.lojas.length + ' lojas)' : '') + '</span><span>' + (entrega === "retirada" ? 'Sem custo' : t.frete ? fmt(t.frete) : 'Grátis') + '</span></div>' +
+  '<div class="linha total"><span>Total</span><span>' + fmt(t.total) + '</span></div>';
+
+function abrirCarrinho() { mostrar("carrinho"); renderCarrinho(); }
+
+function renderCarrinho(foco) {
+  const itens = itensCarrinho();
+  if (!itens.length) {
+    telas.carrinho.innerHTML = '<div class="vazio-car">' + salsicha(0, "Salsicha esperando, com o corpo curtinho") +
+      '<h2 class="det-titulo">Seu carrinho está vazio</h2><p class="secao">A salsicha está esperando. Que tal uma ração, um petisco ou uma bolinha nova?</p>' +
+      '<button class="btn-prim" id="btIrLoja">Ver ofertas</button></div>';
+    $("btIrLoja").addEventListener("click", () => mostrar("lista"));
+    return;
+  }
+  const t = totaisCarrinho(itens, checkout.entrega), falta = FRETE_GRATIS - t.subtotal;
+  telas.carrinho.innerHTML =
+    '<h2 class="det-titulo">Seu carrinho</h2>' +
+    '<div class="carrinho-grid"><div>' +
+      itens.map(i => '<div class="item-car" data-id="' + i.oferta_id + '">' +
+        '<div class="mini">' + (ILUSTRACOES[i.oferta.produto.img] || "") + '</div>' +
+        '<div class="item-info"><b>' + esc(i.oferta.produto.nome) + '</b><small>' + esc(i.oferta.loja.nome) + ' · ' + num1(i.oferta.loja.distanciaKm) + ' km</small>' +
+          '<span class="item-preco">' + fmt(i.oferta.preco * i.qtd) + (i.qtd > 1 ? ' <small>(' + fmt(i.oferta.preco) + ' cada)</small>' : '') + '</span></div>' +
+        '<div class="item-lado"><div class="qtd-ctrl"><button data-acao="menos" aria-label="Diminuir quantidade de ' + esc(i.oferta.produto.nome) + '"' + (i.qtd <= 1 ? ' disabled' : '') + '>' + ic("menos") + '</button>' +
+          '<span>' + i.qtd + '</span><button data-acao="mais" aria-label="Aumentar quantidade de ' + esc(i.oferta.produto.nome) + '"' + (i.qtd >= 20 ? ' disabled' : '') + '>' + ic("mais") + '</button></div>' +
+          '<button class="remover" data-acao="remover">' + ic("lixo") + ' Remover</button></div></div>').join("") +
+      '<h3 class="car-h3">Como você quer receber?</h3><div class="escolhas">' +
+        opcaoEscolha("entrega", "entrega", "caminhao", "Receber em casa", "Chega em 1 a 3 dias úteis") +
+        opcaoEscolha("entrega", "retirada", "loja", "Retirar na loja", "Hoje, sem custo de entrega") + '</div>' +
+    '</div><aside class="resumo" aria-live="polite">' +
+      (checkout.entrega === "entrega" ? '<div class="frete-salsicha">' +
+        salsicha(t.subtotal / FRETE_GRATIS, falta > 0 ? "Salsicha a " + Math.round(t.subtotal / FRETE_GRATIS * 100) + "% do frete grátis" : "Salsicha esticada: frete grátis") +
+        '<p>' + (falta > 0 ? 'Faltam <b>' + fmt(falta) + '</b> para o frete grátis. A salsicha vai esticando!' : '<b>Frete grátis liberado!</b> A salsicha chegou lá.') + '</p></div>' : '') +
+      linhasTotais(t, checkout.entrega) +
+      '<button class="btn-prim" id="btIrPagamento">Continuar para o pagamento ' + ic("seta") + '</button>' +
+      '<button class="btn-sec" id="btContinuar">Continuar comprando</button>' +
+    '</aside></div>';
+
+  telas.carrinho.querySelectorAll(".item-car [data-acao]").forEach(b => b.addEventListener("click", () => {
+    const id = +b.closest(".item-car").dataset.id, item = carrinho.find(i => i.oferta_id === id), acao = b.dataset.acao;
+    if (acao === "mais") item.qtd = Math.min(20, item.qtd + 1);
+    else if (acao === "menos") item.qtd = Math.max(1, item.qtd - 1);
+    else carrinho = carrinho.filter(i => i !== item);
+    salvarCarrinho();
+    renderCarrinho(acao === "remover" ? null : '[data-id="' + id + '"] [data-acao="' + acao + '"]');
+  }));
+  telas.carrinho.querySelectorAll('input[name="entrega"]').forEach(r => r.addEventListener("change", () => { checkout.entrega = r.value; renderCarrinho('input[name="entrega"]:checked'); }));
+  $("btIrPagamento").addEventListener("click", renderPagamento);
+  $("btContinuar").addEventListener("click", () => mostrar("lista"));
+  const alvo = foco && telas.carrinho.querySelector(foco);   // mantém o foco do teclado depois de redesenhar
+  if (alvo && !alvo.disabled) alvo.focus();
+}
+
+function renderPagamento() {
+  const itens = itensCarrinho();
+  if (!itens.length) return renderCarrinho();
+  const t = totaisCarrinho(itens, checkout.entrega), emCasa = checkout.entrega === "entrega", onde = emCasa ? "na entrega" : "na retirada";
+  telas.carrinho.innerHTML =
+    '<button class="voltar" id="btVoltarCar">' + ic("voltar") + ' Voltar ao carrinho</button>' +
+    '<h2 class="det-titulo">Pagamento</h2>' +
+    '<div class="carrinho-grid"><div>' +
+      (emCasa
+        ? '<div class="bloco"><h3>' + ic("mapa") + ' Endereço de entrega</h3><label class="rotulo" for="pgEnd">Rua, número e bairro</label>' +
+          '<input class="campo" id="pgEnd" autocomplete="street-address" value="' + esc(lerPerfil().endereco) + '"></div>'
+        : '<div class="bloco"><h3>' + ic("loja") + ' Onde retirar</h3>' + t.lojas.map(l => '<p class="local"><b>' + esc(l.nome) + '</b> · ' + esc(l.endereco) + '</p>').join("") + '</div>') +
+      '<div class="bloco"><h3>' + ic("cartao") + ' Forma de pagamento</h3><div class="escolhas col">' +
+        opcaoEscolha("pagamento", "pix", "pix", "Pix", "Aprovação na hora") +
+        opcaoEscolha("pagamento", "cartao_entrega", "cartao", "Cartão " + onde, emCasa ? "Débito ou crédito na maquininha do entregador" : "Débito ou crédito no caixa da loja") +
+        opcaoEscolha("pagamento", "dinheiro", "dinheiro", "Dinheiro " + onde, emCasa ? "Se precisar de troco, avise o entregador" : "Pague no caixa da loja") + '</div>' +
+        '<div class="aviso simulado">' + ic("cadeado") + '<span><b>Pagamento simulado.</b> Este é um projeto acadêmico: nenhum valor é cobrado e nenhum dado de cartão é pedido.</span></div></div>' +
+    '</div><aside class="resumo">' +
+      '<ul class="mini-lista">' + itens.map(i => '<li><span>' + i.qtd + '× ' + esc(i.oferta.produto.nome) + '</span><span>' + fmt(i.oferta.preco * i.qtd) + '</span></li>').join("") + '</ul>' +
+      linhasTotais(t, checkout.entrega) +
+      '<button class="btn-prim" id="btConfirmar">Confirmar pedido · ' + fmt(t.total) + '</button><div id="erroPag" role="alert"></div>' +
+    '</aside></div>';
+  telas.carrinho.querySelectorAll('input[name="pagamento"]').forEach(r => r.addEventListener("change", () => { checkout.pagamento = r.value; }));
+  $("btVoltarCar").addEventListener("click", () => renderCarrinho());
+  $("btConfirmar").addEventListener("click", () => confirmarPedido(itens));
+  window.scrollTo(0, 0);
+}
+
+async function confirmarPedido(itens) {
+  const emCasa = checkout.entrega === "entrega", endereco = emCasa ? $("pgEnd").value.trim() : "";
+  const erro = msg => { $("erroPag").innerHTML = '<div class="aviso-erro">' + esc(msg) + '</div>'; };
+  if (emCasa && endereco.length < 5) { erro("Informe o endereço de entrega (rua, número e bairro)."); $("pgEnd").focus(); return; }
+  const bt = $("btConfirmar"); bt.disabled = true; bt.textContent = "Confirmando o pedido…";
+  try {
+    const r = await api("/api/pedidos", { method: "POST", body: JSON.stringify({ tutor_id: TUTOR_ID, entrega: checkout.entrega, pagamento: checkout.pagamento,
+      itens: itens.map(i => ({ oferta_id: i.oferta_id, quantidade: i.qtd })) }) });
+    carrinho = []; salvarCarrinho();
+    renderPedidoConfirmado(r, itens, endereco);
+  } catch (e) {
+    erro(e.message.includes("fetch") ? "Sem conexão com o servidor. Confira se o app.py está rodando e tente de novo." : e.message);
+    bt.disabled = false; bt.textContent = "Tentar de novo";
+  }
+}
+
+function renderPedidoConfirmado(r, itens, endereco) {
+  const emCasa = r.entrega === "entrega";
+  const comoPaga = r.pagamento === "pix" ? "Pagamento via Pix aprovado (simulação)." : "Você paga com " + PAGAMENTO_NOME[r.pagamento] + (emCasa ? " na entrega." : " na retirada.");
+  telas.carrinho.innerHTML =
+    '<div class="pedido-ok"><div class="selo">' + ic("check") + '</div><h2 class="det-titulo">Pedido confirmado!</h2>' +
+      '<p class="num-pedido">Pedido ' + esc(r.numero) + '</p>' +
+      '<p class="secao">' + comoPaga + ' ' + (emCasa ? 'Entrega em ' + esc(endereco) + '.' : 'Pode retirar hoje na loja.') + '</p></div>' +
+    '<div class="bloco"><ul class="mini-lista">' + itens.map(i => '<li><span>' + i.qtd + '× ' + esc(i.oferta.produto.nome) + ' <small>· ' + esc(i.oferta.loja.nome) + '</small></span><span>' + fmt(i.oferta.preco * i.qtd) + '</span></li>').join("") + '</ul>' +
+      '<div class="linha"><span>Subtotal</span><span>' + fmt(r.subtotal) + '</span></div><div class="linha"><span>Frete</span><span>' + (r.frete ? fmt(r.frete) : emCasa ? 'Grátis' : 'Sem custo') + '</span></div>' +
+      '<div class="linha total"><span>Total</span><span>' + fmt(r.total) + '</span></div></div>' +
+    '<div class="bloco"><h3>' + ic("ia") + ' Sua compra já ensina a IA <span class="rot-db">tabela compras</span></h3>' +
+      '<p class="explica" style="margin:0">Os itens entraram no seu histórico: agora são ' + r.historico.total_compras_janela + ' compras nos últimos 90 dias. A recomendação de veterinário leva isso em conta.</p>' +
+      '<button class="btn-sec" id="btVerRec">' + ic("ia") + ' Ver recomendação para o meu pet</button></div>' +
+    '<button class="btn-prim" id="btVoltarLoja">Voltar à loja</button>';
+  $("btVerRec").addEventListener("click", () => { mostrar("recomendacao"); renderRecomendacao("checkup"); });
+  $("btVoltarLoja").addEventListener("click", () => mostrar("lista"));
+  window.scrollTo(0, 0);
+}
+
+$("btCarrinhoTopo").addEventListener("click", abrirCarrinho);
+salvarCarrinho();   // atualiza o contador com o que ficou salvo no navegador
 
 document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => {
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("ativo")); chip.classList.add("ativo"); ordemAtual = chip.dataset.ord; render();
@@ -833,6 +1030,7 @@ const abrirPorHash = () => {
   }
   else if (h === "emergencia") { mostrar("emergencia"); renderEmergenciaHome(); }
   else if (h === "perfil") { mostrar("perfil"); renderPerfil(); }
+  else if (h === "carrinho") abrirCarrinho();
 };
 window.addEventListener("hashchange", abrirPorHash);
 
