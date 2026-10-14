@@ -206,6 +206,35 @@ def test_painel_restrito_a_clinica(cliente, banco_temp):
     assert all(r["n"] >= 2 or r["raca"] == "Outras" for r in p["racas"])               # sem grupos de 1 pet
 
 
+def test_pedido_do_carrinho(cliente, banco_temp):
+    precos = {o["id"]: o["preco"] for o in cliente.get("/api/ofertas").get_json()}
+    antes = cliente.get("/api/tutores/1/historico").get_json()["total_compras_janela"]
+    pedido = {"tutor_id": 1, "itens": [{"oferta_id": 1, "quantidade": 2}, {"oferta_id": 25}],
+              "entrega": "entrega", "pagamento": "pix"}
+    r = cliente.post("/api/pedidos", json=pedido)
+    assert r.status_code == 201
+    p = r.get_json()
+    assert p["numero"].startswith("PP-") and p["pagamento"] == "pix"
+    assert p["subtotal"] == round(precos[1] * 2 + precos[25], 2)
+    assert p["total"] == round(p["subtotal"] + p["frete"], 2)
+    assert (p["frete"] == 0) == (p["subtotal"] >= 100)                 # frete grátis acima de R$ 100
+    assert p["historico"]["total_compras_janela"] == antes + 2         # uma linha em compras por item
+    assert cliente.post("/api/pedidos", json=pedido | {"entrega": "retirada"}).get_json()["frete"] == 0
+
+
+def test_pedido_valida_entrada(cliente, banco_temp):
+    antes = cliente.get("/api/tutores/1/historico").get_json()["total_compras_janela"]
+    base = {"tutor_id": 1, "itens": [{"oferta_id": 1}], "entrega": "retirada", "pagamento": "dinheiro"}
+    assert cliente.post("/api/pedidos", json=base | {"itens": []}).status_code == 400
+    assert cliente.post("/api/pedidos", json=base | {"itens": [{"oferta_id": 1, "quantidade": 0}]}).status_code == 400
+    assert cliente.post("/api/pedidos", json=base | {"itens": ["x"]}).status_code == 400
+    assert cliente.post("/api/pedidos", json=base | {"pagamento": "bitcoin"}).status_code == 400
+    assert cliente.post("/api/pedidos", json=base | {"entrega": "drone"}).status_code == 400
+    # oferta inexistente no meio do carrinho: nada é gravado (transação única)
+    assert cliente.post("/api/pedidos", json=base | {"itens": [{"oferta_id": 1}, {"oferta_id": 9999}]}).status_code == 400
+    assert cliente.get("/api/tutores/1/historico").get_json()["total_compras_janela"] == antes
+
+
 def test_clinica_criada_aparece_nas_clinicas_demo(cliente, banco_temp):
     cliente.post("/api/cadastro", json=CLINICA_NOVA)
     nomes = [c["nome"] for c in cliente.get("/api/clinicas?especialidade=nutricao").get_json()]

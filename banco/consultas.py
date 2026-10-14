@@ -107,6 +107,36 @@ def registrar_compra(tutor_id, oferta_id, quantidade=1):
         return cur.lastrowid
 
 
+FRETE_GRATIS_ACIMA = 100.0
+
+
+def registrar_pedido(tutor_id, itens, entrega):
+    """
+    Finaliza o carrinho: uma linha em `compras` por item, tudo na MESMA transação
+    (se uma oferta não existir, nada é gravado). Frete só para entrega em casa:
+    grátis com subtotal a partir de R$ 100; senão R$ 8,90 + R$ 4/km por loja do pedido.
+    """
+    with conectar() as con:
+        linhas = []
+        for it in itens:
+            r = con.execute("""SELECT o.id, o.preco, o.loja_id, l.distancia_km
+                                 FROM ofertas o JOIN lojas l ON l.id = o.loja_id WHERE o.id = ?""",
+                            (it["oferta_id"],)).fetchone()
+            if r is None:
+                raise ValueError(f"oferta {it['oferta_id']} não existe")
+            linhas.append((r, it["quantidade"]))
+        subtotal = round(sum(r["preco"] * q for r, q in linhas), 2)
+        lojas = {r["loja_id"]: r["distancia_km"] for r, _ in linhas}
+        frete = 0.0 if entrega == "retirada" or subtotal >= FRETE_GRATIS_ACIMA \
+            else round(sum(8.90 + d * 4 for d in lojas.values()), 2)
+        hoje = date.today().isoformat()
+        ids = [con.execute("INSERT INTO compras (tutor_id, oferta_id, data, quantidade, valor) VALUES (?,?,?,?,?)",
+                           (tutor_id, r["id"], hoje, q, r["preco"] * q)).lastrowid for r, q in linhas]
+    # shortcut: não há tabela de pedidos; o número vem da 1ª compra gravada. Criar `pedidos` se precisar consultar pedidos.
+    return {"numero": f"PP-{ids[0]:05d}", "itens": len(linhas), "subtotal": subtotal,
+            "frete": frete, "total": round(subtotal + frete, 2)}
+
+
 def historico_tutor(tutor_id, janela_dias=JANELA_DIAS):
     """
     Resume as compras do tutor nos últimos `janela_dias` em features de comportamento:

@@ -176,6 +176,47 @@ def api_compras():
     return jsonify({"compra_id": compra_id, "historico": consultas.historico_tutor(tutor_id)}), 201
 
 
+ENTREGAS = {"retirada", "entrega"}
+PAGAMENTOS = {"pix", "cartao_entrega", "dinheiro"}
+
+
+@app.post("/api/pedidos")
+def api_pedidos():
+    """
+    Finaliza o carrinho. Cada item vira uma compra (o dado que alimenta a IA).
+    O PAGAMENTO É SIMULADO (projeto acadêmico): nenhum valor é cobrado e nenhum dado de cartão é recebido.
+    """
+    corpo = request.get_json(silent=True) or {}
+    if (conta := conta_atual()) and conta["tipo"] == "clinica":
+        return jsonify({"erro": "contas de clínica não fazem compras na loja"}), 403
+    try:
+        tutor_id = _tutor_alvo(int(corpo.get("tutor_id", TUTOR_DEMO_ID)))
+    except (TypeError, ValueError):
+        return jsonify({"erro": "tutor_id inválido"}), 400
+    if tutor_id is None:
+        return _sem_acesso_ao_tutor()
+    itens = corpo.get("itens")
+    if not isinstance(itens, list) or not 1 <= len(itens) <= 30:
+        return jsonify({"erro": "o carrinho está vazio (ou tem itens demais)"}), 400
+    try:
+        itens = [{"oferta_id": int(i["oferta_id"]), "quantidade": int(i.get("quantidade", 1))} for i in itens]
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return jsonify({"erro": "item inválido no carrinho"}), 400
+    if any(not 1 <= i["quantidade"] <= 20 for i in itens):
+        return jsonify({"erro": "a quantidade de cada item deve ficar entre 1 e 20"}), 400
+    entrega, pagamento = corpo.get("entrega"), corpo.get("pagamento")
+    if entrega not in ENTREGAS:
+        return jsonify({"erro": "escolha retirar na loja ou receber em casa"}), 400
+    if pagamento not in PAGAMENTOS:
+        return jsonify({"erro": "forma de pagamento inválida"}), 400
+    try:
+        pedido = consultas.registrar_pedido(tutor_id, itens, entrega)
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 400
+    return jsonify(pedido | {"entrega": entrega, "pagamento": pagamento,
+                             "historico": consultas.historico_tutor(tutor_id)}), 201
+
+
 # ------------------------------------------------------------ [banco] contas (login de DEMONSTRAÇÃO)
 # Dois tipos de conta: 'cliente' (tutor + pet) e 'clinica'. A senha é guardada só como hash
 # (werkzeug.security). A sessão (flask.session) guarda apenas o id da conta.

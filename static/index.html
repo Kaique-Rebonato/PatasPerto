@@ -11,35 +11,38 @@
 <header>
   <div class="header-linha">
     <div class="header-logo">
-      <h1 id="logo">🐾 PatasPerto</h1>
+      <h1 id="logo"><img src="/static/img/logo.png" alt="PatasPerto" width="262" height="192"></h1>
       <p id="subtitulo">Produtos para o seu pet nas lojas mais perto de você</p>
     </div>
     <div class="busca-topo" role="search">
-      <input id="campoBusca" type="text" placeholder="Buscar produto (ex.: ração, antipulgas, dental)" autocomplete="off" aria-label="Buscar produto">
+      <span data-ic="busca" class="busca-ic" aria-hidden="true"></span>
+      <input id="campoBusca" type="search" placeholder="Buscar ração, antipulgas, petisco…" autocomplete="off" aria-label="Buscar produto">
       <button id="botaoBusca">Buscar</button>
     </div>
     <div class="header-acoes">
-      <button id="btConta" class="conta" title="Minha conta">👤 <span id="contaNome">Perfil</span></button>
-      <button id="btCarrinhoTopo" class="conta conta-icone" title="Carrinho" aria-label="Carrinho">🛒<span id="qtdCarrinho" class="qtd" hidden>0</span></button>
+      <button id="btConta" class="conta" title="Minha conta" data-ic="usuario"><span id="contaNome">Perfil</span></button>
+      <button id="btCarrinhoTopo" class="conta conta-icone" title="Carrinho" aria-label="Carrinho" data-ic="carrinho"><span id="qtdCarrinho" class="qtd" hidden>0</span></button>
       <button id="btSair" class="conta" title="Entrar / sair da conta">Entrar</button>
     </div>
   </div>
 </header>
 
 <nav class="secoes">
-  <button id="navLoja" class="ativo">🛒 Loja</button>
-  <button id="navRec">🤖 Recomendação</button>
-  <button id="navMapa">🗺️ Mapa</button>
-  <button id="navEmg">🚑 Emergência</button>
+  <button id="navLoja" class="ativo" data-ic="loja">Loja</button>
+  <button id="navRec" data-ic="ia">Recomendação</button>
+  <button id="navMapa" data-ic="mapa">Mapa</button>
+  <button id="navEmg" data-ic="pulso">Emergência</button>
 </nav>
 
 <div id="telaLista">
   <section class="hero">
     <div class="hero-texto">
-      <h2 class="titulo-hero"><span class="t1">Tudo para o seu</span> <span class="t2">pet</span>
-        <span class="apoio">Ração, saúde e diversão nas lojas mais perto de você</span></h2>
+      <h2 class="titulo-hero">Tudo pro seu pet, pertinho de casa</h2>
+      <p class="apoio">Ração, saúde e diversão das lojas do seu bairro. E, se o pet precisar, a gente indica o veterinário certo.</p>
     </div>
-    <div class="hero-arte" id="heroArte" aria-hidden="true"></div>
+    <figure class="hero-foto">
+      <img src="/static/img/upscalemedia-transformed.webp" alt="Cachorrinha salsicha preta e caramelo com três bolinhas de tênis na boca, olhando para a câmera" width="1600" height="1196">
+    </figure>
   </section>
   <div class="filtros">
     <button class="chip ativo" data-ord="preco">↓ Menor preço</button>
@@ -50,6 +53,7 @@
 </div>
 
 <div id="telaProduto"></div>
+<div id="telaCarrinho"></div>
 <div id="telaEmergencia"></div>
 <div id="telaRecomendacao"></div>
 <div id="telaPerfil"></div>
