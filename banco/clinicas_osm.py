@@ -16,21 +16,24 @@ import math
 import os
 import re
 import sqlite3
+import time
 import unicodedata
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 CAMINHO_DB = os.path.join(AQUI, "patasperto.db")
-# Servidores públicos do Overpass (mesmos dados do OpenStreetMap). Vivem sobrecarregados: se um não
-# responder a tempo, tenta o próximo. Ordem = do mais rápido nos testes para o oficial.
+# Servidores públicos do Overpass (mesmos dados do OpenStreetMap). Vivem sobrecarregados e oscilam
+# muito (o mesmo servidor responde em 1 s e, minutos depois, esgota o tempo): por isso os três são
+# consultados AO MESMO TEMPO e vale a primeira resposta boa (ver _consultar_overpass).
 OVERPASS_URLS = (
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass-api.de/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 )
-TIMEOUT_OVERPASS_S = 12   # por servidor: no pior caso o usuário espera ~36 s antes da demonstração
+TIMEOUT_OVERPASS_S = 25   # igual ao [timeout:25] da consulta; em paralelo, é também a espera máxima
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 USER_AGENT = "PatasPerto/1.0 (projeto academico; contato via GitHub)"
 VALIDADE_CACHE = timedelta(hours=24)
@@ -38,12 +41,13 @@ DIAS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 
 
 # ------------------------------------------------------------------ cache
-def _cache_get(chave):
+def _cache_get(chave, vencido_ok=False):
+    """Resposta guardada de uma consulta externa. `vencido_ok=True` aceita a de mais de 24h (plano B)."""
     with sqlite3.connect(CAMINHO_DB) as con:
         r = con.execute("SELECT conteudo, criado_em FROM cache_externo WHERE chave=?", (chave,)).fetchone()
     if not r:
         return None
-    if datetime.now() - datetime.fromisoformat(r[1]) > VALIDADE_CACHE:
+    if not vencido_ok and datetime.now() - datetime.fromisoformat(r[1]) > VALIDADE_CACHE:
         return None
     return json.loads(r[0])
 
@@ -164,12 +168,29 @@ def _consultar_overpass(lat, lon, raio_m):
  way["amenity"="veterinary"](around:{raio_m},{lat},{lon});
  node["healthcare"="veterinary"](around:{raio_m},{lat},{lon}););
 out center tags;"""
-    dados, erro = urllib.parse.urlencode({"data": q}).encode(), None
-    for url in OVERPASS_URLS:
-        try:
-            return _http_json(url, data=dados, timeout=TIMEOUT_OVERPASS_S)
-        except (OSError, ValueError) as e:   # timeout, recusa, HTTP 5xx ou resposta que não é JSON
-            erro = e
+    dados, inicio = urllib.parse.urlencode({"data": q}).encode(), time.monotonic()
+    try:
+        return _primeira_resposta(dados)
+    except (OSError, ValueError):
+        if time.monotonic() - inicio > 10:   # a rodada já demorou (timeout): não faz o usuário esperar o dobro
+            raise
+        time.sleep(2)                        # erros rápidos (500/502/504) desses servidores costumam passar em segundos
+        return _primeira_resposta(dados)
+
+
+def _primeira_resposta(dados):
+    """Pergunta a todos os servidores ao mesmo tempo e devolve a primeira resposta boa."""
+    erro = None
+    exe = ThreadPoolExecutor(max_workers=len(OVERPASS_URLS))
+    try:
+        futuros = [exe.submit(_http_json, url, dados, TIMEOUT_OVERPASS_S) for url in OVERPASS_URLS]
+        for f in as_completed(futuros):
+            try:
+                return f.result()
+            except (OSError, ValueError) as e:   # timeout, recusa, HTTP 5xx ou resposta que não é JSON
+                erro = e
+    finally:
+        exe.shutdown(wait=False, cancel_futures=True)   # não espera os servidores mais lentos
     raise erro
 
 
@@ -206,8 +227,16 @@ def buscar_clinicas(lat, lon, raio_km=5.0, consultar=None):
     chave = f"overpass:{round(lat, 3)},{round(lon, 3)},{raio_km}"
     bruto = _cache_get(chave)
     if bruto is None:
-        bruto = (consultar or _consultar_overpass)(lat, lon, int(raio_km * 1000))
-        _cache_set(chave, bruto)
+        try:
+            bruto = (consultar or _consultar_overpass)(lat, lon, int(raio_km * 1000))
+        except (OSError, ValueError):
+            # servidores fora: a última resposta boa, mesmo com mais de 24h, vale mais que a demonstração
+            # (clínica não muda de endereço de um dia para o outro)
+            bruto = _cache_get(chave, vencido_ok=True)
+            if bruto is None:
+                raise
+        else:
+            _cache_set(chave, bruto)
     vistos, lista = set(), []
     for e in bruto.get("elements", []):
         c = _normalizar_elemento(e, lat, lon)

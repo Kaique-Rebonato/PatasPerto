@@ -74,7 +74,7 @@ OVERPASS_FAKE = {"elements": [
 def overpass_falso(monkeypatch):
     import clinicas_osm
     monkeypatch.setattr(clinicas_osm, "_consultar_overpass", lambda lat, lon, r: OVERPASS_FAKE)
-    monkeypatch.setattr(clinicas_osm, "_cache_get", lambda chave: None)
+    monkeypatch.setattr(clinicas_osm, "_cache_get", lambda chave, vencido_ok=False: None)
     monkeypatch.setattr(clinicas_osm, "_cache_set", lambda chave, v: None)
 
 
@@ -108,7 +108,7 @@ def test_openstreetmap_fora_do_ar_cai_para_demonstracao(cliente, monkeypatch):
     def fora_do_ar(*a, **k):
         raise TimeoutError("The read operation timed out")
     monkeypatch.setattr(clinicas_osm, "_consultar_overpass", fora_do_ar)
-    monkeypatch.setattr(clinicas_osm, "_cache_get", lambda chave: None)
+    monkeypatch.setattr(clinicas_osm, "_cache_get", lambda chave, vencido_ok=False: None)
     r = cliente.get("/api/clinicas?meta=1&lat=-23.0908&lon=-47.2180&raio_km=5&hora=11:00")
     assert r.status_code == 200
     corpo = r.get_json()
@@ -119,18 +119,59 @@ def test_openstreetmap_fora_do_ar_cai_para_demonstracao(cliente, monkeypatch):
     assert rec.status_code == 200 and rec.get_json()["banco"]["fonte"] == "demo"
 
 
-def test_overpass_tenta_o_proximo_servidor(monkeypatch):
-    """Se um servidor do Overpass falha, o próximo da lista é usado."""
+def test_overpass_usa_o_servidor_que_responder(monkeypatch):
+    """Os servidores são consultados ao mesmo tempo: vale a primeira resposta boa, mesmo que outros falhem."""
+    import time
     import clinicas_osm
-    tentados = []
+    lento, fora, rapido = clinicas_osm.OVERPASS_URLS
     def http_falso(url, data=None, timeout=30):
-        tentados.append(url)
-        if len(tentados) == 1:
-            raise TimeoutError("lento")
+        if url == lento:
+            time.sleep(2)                      # o 1º da lista está lento: não pode atrasar a resposta
+        if url == fora:
+            raise TimeoutError("fora do ar")
+        return {"elements": [{"servidor": url}]}
+    monkeypatch.setattr(clinicas_osm, "_http_json", http_falso)
+    inicio = time.monotonic()
+    assert clinicas_osm._consultar_overpass(-23.09, -47.21, 5000) == {"elements": [{"servidor": rapido}]}
+    assert time.monotonic() - inicio < 1.5     # um de cada vez levaria 2 s
+
+
+def test_overpass_todos_fora_do_ar(monkeypatch):
+    import clinicas_osm
+    chamadas = []
+    def http_falso(url, data=None, timeout=30):
+        chamadas.append(url)
+        raise TimeoutError("fora do ar")
+    monkeypatch.setattr(clinicas_osm, "_http_json", http_falso)
+    monkeypatch.setattr(clinicas_osm.time, "sleep", lambda s: None)
+    with pytest.raises(TimeoutError):
+        clinicas_osm._consultar_overpass(-23.09, -47.21, 5000)
+    assert len(chamadas) == 2 * len(clinicas_osm.OVERPASS_URLS)      # falhou rápido: uma 2ª rodada
+
+
+def test_overpass_segunda_rodada_salva(monkeypatch):
+    """Erros 500/502/504 rápidos costumam passar em segundos: a 2ª rodada aproveita."""
+    import clinicas_osm
+    chamadas = []
+    def http_falso(url, data=None, timeout=30):
+        chamadas.append(url)
+        if len(chamadas) <= len(clinicas_osm.OVERPASS_URLS):
+            raise OSError("HTTP 502")
         return {"elements": []}
     monkeypatch.setattr(clinicas_osm, "_http_json", http_falso)
+    monkeypatch.setattr(clinicas_osm.time, "sleep", lambda s: None)
     assert clinicas_osm._consultar_overpass(-23.09, -47.21, 5000) == {"elements": []}
-    assert tentados == list(clinicas_osm.OVERPASS_URLS[:2])
+
+
+def test_servidores_fora_usa_resposta_antiga_do_cache(monkeypatch):
+    """Sem servidor, a última resposta boa (mesmo vencida) vale mais que as clínicas fictícias."""
+    import clinicas_osm
+    def fora(*a, **k):
+        raise TimeoutError("fora do ar")
+    monkeypatch.setattr(clinicas_osm, "_consultar_overpass", fora)
+    monkeypatch.setattr(clinicas_osm, "_cache_get", lambda chave, vencido_ok=False: OVERPASS_FAKE if vencido_ok else None)
+    lista = clinicas_osm.buscar_clinicas(-22.9056, -47.0608, 5)
+    assert [c["nome"] for c in lista][:1] == ["Hospital Veterinário Central 24h"]
 
 
 def test_geocodificar_valida_entrada(cliente):
