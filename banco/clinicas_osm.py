@@ -23,7 +23,14 @@ from datetime import datetime, timedelta
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 CAMINHO_DB = os.path.join(AQUI, "patasperto.db")
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Servidores públicos do Overpass (mesmos dados do OpenStreetMap). Vivem sobrecarregados: se um não
+# responder a tempo, tenta o próximo. Ordem = do mais rápido nos testes para o oficial.
+OVERPASS_URLS = (
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+)
+TIMEOUT_OVERPASS_S = 12   # por servidor: no pior caso o usuário espera ~36 s antes da demonstração
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 USER_AGENT = "PatasPerto/1.0 (projeto academico; contato via GitHub)"
 VALIDADE_CACHE = timedelta(hours=24)
@@ -49,7 +56,7 @@ def _cache_set(chave, valor):
 
 def _http_json(url, data=None, timeout=30):
     # urllib também abre file:// e outros esquemas: só as duas APIs públicas (https) são aceitas
-    if not url.startswith((OVERPASS_URL, NOMINATIM_URL + "?")):
+    if not (url in OVERPASS_URLS or url.startswith(NOMINATIM_URL + "?")):
         raise ValueError(f"URL externa não permitida: {url[:60]}")
     req = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosemgrep: dynamic-urllib-use-detected — URL validada acima
@@ -157,7 +164,20 @@ def _consultar_overpass(lat, lon, raio_m):
  way["amenity"="veterinary"](around:{raio_m},{lat},{lon});
  node["healthcare"="veterinary"](around:{raio_m},{lat},{lon}););
 out center tags;"""
-    return _http_json(OVERPASS_URL, data=urllib.parse.urlencode({"data": q}).encode())
+    dados, erro = urllib.parse.urlencode({"data": q}).encode(), None
+    for url in OVERPASS_URLS:
+        try:
+            return _http_json(url, data=dados, timeout=TIMEOUT_OVERPASS_S)
+        except (OSError, ValueError) as e:   # timeout, recusa, HTTP 5xx ou resposta que não é JSON
+            erro = e
+    raise erro
+
+
+def _link_seguro(url):
+    """O OpenStreetMap é editável por qualquer pessoa: um "site" javascript:... viraria XSS no link
+    da ficha da clínica. Só passam endereços http(s)."""
+    url = (url or "").strip()
+    return url if url.lower().startswith(("https://", "http://")) else ""
 
 
 def _normalizar_elemento(e, lat, lon):
@@ -172,7 +192,7 @@ def _normalizar_elemento(e, lat, lon):
         "id": f"osm:{e['type']}/{e['id']}",
         "nome": nome, "endereco": endereco,
         "telefone": t.get("phone") or t.get("contact:phone") or t.get("mobile") or "",
-        "site": t.get("website") or t.get("contact:website") or "",
+        "site": _link_seguro(t.get("website") or t.get("contact:website")),
         "horario_texto": oh or "", "horario_conhecido": bool(oh), "aberto_24h": (oh or "").strip() == "24/7",
         "abre": None, "fecha": None,
         "especialidades": inferir_especialidades(nome, oh, t), "especialidade_inferida": True,

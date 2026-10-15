@@ -5,7 +5,8 @@ Marketplace pet acadêmico: Flask + SQLite + Random Forest (scikit-learn). Front
 ## Rodar e testar
 
 - Preparar tudo (venv, banco, dataset, modelo e app): `bash preparar.sh`. Funciona no Windows (Git Bash) e no Linux/Mac.
-- Subir o app: `python app.py` → http://127.0.0.1:5000. No Windows, use `.venv/Scripts/python.exe` com `PYTHONUTF8=1`.
+- Subir o app: `python app.py` → http://127.0.0.1:5000. No Windows, use `.venv/Scripts/python.exe` com `PYTHONUTF8=1`. O debug vem desligado; `FLASK_DEBUG=1` liga a recarga automática.
+- Segurança: rode `semgrep --config auto .` e os testes de `tests/test_seguranca.py` antes de publicar. Toda rota nova valida a entrada no servidor e usa `_tutor_alvo()`, nunca o id que vem da tela.
 - Testes: `python -m pytest tests/`. Cada teste usa uma cópia temporária do banco (fixture `banco_temp`, autouse), então rodar os testes não altera o banco do app.
 - Mudou `banco/schema.sql`? Rode `python banco/criar_banco.py` para recriar o banco. No Windows, pare o servidor antes, porque ele trava o arquivo `.db`.
 

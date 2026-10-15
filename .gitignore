@@ -7,3 +7,7 @@ ml/dataset.csv
 ml/modelo.pkl
 ml/metricas.json
 .DS_Store
+# segredos: nunca vão para o Git
+.env
+.env.*
+banco/.chave_secreta

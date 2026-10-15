@@ -153,7 +153,24 @@ Por que Random Forest: lida com categóricas e numéricas juntas, é robusto a r
 - **Clínica** vê outra visão: o painel de indicadores agregados dos clientes, calculado por consultas `GROUP BY` em `banco/consultas.py`. A clínica nunca recebe CPF, nome ou dados de saúde individuais.
 - Sem conta, "Continuar sem conta" (ou um atalho `/#mapa` etc.) abre o modo demonstração de antes, com o tutor demo.
 - Contas de demonstração criadas por `criar_banco.py` (senha `demo123`): cliente `ana.ribeiro@exemplo.com` · clínica `contato@vidapet.exemplo`.
-- **CPF e dados de saúde são fictícios (LGPD).** Login de demonstração: sem recuperação de senha, limite de tentativas ou HTTPS — não é segurança de produção.
+- **CPF e dados de saúde são fictícios (LGPD).** Login de demonstração: sem recuperação de senha nem HTTPS — não é segurança de produção.
+
+### Segurança (o que já está protegido)
+
+| Proteção | Como |
+|---|---|
+| Chave da sessão fora do código | `PATASPERTO_SECRET_KEY` ou `banco/.chave_secreta`, gerada na 1ª execução e fora do Git |
+| Senhas | só o hash (`werkzeug.security`); sem conta, o login compara com um hash falso para não revelar quais e-mails existem |
+| Limite de tentativas | 5 senhas erradas em 5 min e 10 cadastros por hora, por IP → `429` (na memória do processo) |
+| Cada um só vê o seu | o servidor ignora o `tutor_id` enviado pela tela e usa o da conta logada |
+| Validação no servidor | quantidades, horários, situação, idade, coordenadas, tamanhos de texto; corpo acima de 64 KB → `413` |
+| Erros sem detalhe | a API responde JSON genérico; o traceback fica só no log do servidor |
+| Cabeçalhos | `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`; sem CORS (só a própria origem lê a API) |
+| Cookie de sessão | `HttpOnly`, `SameSite=Lax`; com HTTPS, `PATASPERTO_HTTPS=1` liga o `Secure` |
+| Links externos | sites vindos do OpenStreetMap só passam se forem `http(s)` (evita `javascript:`) |
+| Modo debug | desligado por padrão; `FLASK_DEBUG=1` liga a recarga automática no desenvolvimento |
+
+Os ataques estão testados em `tests/test_seguranca.py`. A análise estática roda com `semgrep --config auto .`.
 
 ---
 

@@ -12,10 +12,14 @@ Contas (login de DEMONSTRAÇÃO, dados fictícios): 'cliente' (tutor + pet) e 'c
 Senhas só como hash (werkzeug.security); sessão via flask.session. A conta clínica acessa
 o painel de indicadores — agregação SQL (GROUP BY), não IA.
 """
+import math
 import os
 import re
+import secrets
 import sqlite3
 import sys
+import time
+from collections import defaultdict, deque
 from datetime import datetime
 from functools import wraps
 
@@ -29,12 +33,91 @@ sys.path.insert(0, os.path.join(AQUI, "ml"))
 import clinicas_osm  # noqa: E402
 import consultas  # noqa: E402
 import recomendador  # noqa: E402
+from gerar_dataset import SITUACOES  # noqa: E402  (as situações que o modelo conhece)
 
 app = Flask(__name__, static_folder=os.path.join(AQUI, "static"), static_url_path="/static")
-# Login de DEMONSTRAÇÃO (projeto acadêmico): sessão assinada pelo Flask. Em produção a chave
-# viria de um segredo de verdade; aqui há um valor padrão para o app rodar sem configuração.
-app.secret_key = os.environ.get("PATASPERTO_SECRET_KEY", "patasperto-demo-nao-usar-em-producao")
-app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
+
+
+def _chave_secreta():
+    """
+    Chave que assina o cookie de sessão. Quem a conhece consegue forjar um login, então ela
+    NUNCA fica no código: vem de PATASPERTO_SECRET_KEY ou de um arquivo local gerado na
+    primeira execução (banco/.chave_secreta, fora do Git pelo .gitignore).
+    """
+    if os.environ.get("PATASPERTO_SECRET_KEY"):
+        return os.environ["PATASPERTO_SECRET_KEY"]
+    caminho = os.path.join(AQUI, "banco", ".chave_secreta")
+    if not os.path.exists(caminho):
+        with open(caminho, "w", encoding="utf-8") as f:
+            f.write(secrets.token_hex(32))
+    with open(caminho, encoding="utf-8") as f:
+        return f.read().strip()
+
+
+app.secret_key = _chave_secreta()
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  # com HTTPS (site publicado), defina PATASPERTO_HTTPS=1: o cookie só trafega criptografado
+                  SESSION_COOKIE_SECURE=os.environ.get("PATASPERTO_HTTPS") == "1",
+                  MAX_CONTENT_LENGTH=64 * 1024)   # nenhuma rota recebe arquivo: corpo acima de 64 KB é recusado (413)
+
+# Content-Security-Policy: o navegador só roda scripts, estilos, fontes e imagens desta origem
+# (mais os tiles do mapa). Estilos inline ficam liberados porque o app e o Leaflet usam style="...".
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; "
+       "img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self'; "
+       "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
+
+
+@app.after_request
+def cabecalhos_de_seguranca(resp):
+    resp.headers["Content-Security-Policy"] = CSP
+    resp.headers["X-Content-Type-Options"] = "nosniff"           # não "adivinha" o tipo do arquivo
+    resp.headers["X-Frame-Options"] = "DENY"                     # ninguém embute o site num iframe (clickjacking)
+    resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    resp.headers["Permissions-Policy"] = "geolocation=(self), camera=(), microphone=(), payment=()"
+    if request.path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store"               # dados de conta não ficam em cache
+    # CORS: de propósito, nenhum Access-Control-Allow-Origin. Front-end e API têm a mesma origem,
+    # então outros sites não conseguem ler as respostas da API.
+    return resp
+
+
+@app.errorhandler(404)
+@app.errorhandler(405)
+@app.errorhandler(413)
+@app.errorhandler(500)
+def erro_sem_detalhe(e):
+    """Erros da API saem em JSON, sem traceback nem nome de arquivo (o detalhe fica só no log do servidor)."""
+    codigo = getattr(e, "code", 500) or 500
+    if not request.path.startswith("/api/"):
+        return e if codigo != 500 else ("Erro interno.", 500)
+    mensagens = {404: "rota não encontrada", 405: "método não permitido", 413: "requisição grande demais"}
+    if codigo == 500:
+        app.logger.exception("erro interno em %s", request.path)
+    return jsonify({"erro": mensagens.get(codigo, "erro interno, tente de novo")}), codigo
+
+
+# ------------------------------------------------------------ limite de tentativas
+# shortcut: guarda as tentativas na memória do processo (zera ao reiniciar e não vale entre vários
+# processos). Ao publicar com mais de um processo/servidor, trocar por Redis (ex.: Flask-Limiter).
+_tentativas = defaultdict(deque)
+
+
+def limite_excedido(acao, maximo, janela_s):
+    """True se este IP já fez `maximo` tentativas de `acao` nos últimos `janela_s` segundos."""
+    agora, fila = time.monotonic(), _tentativas[(acao, request.remote_addr)]
+    while fila and agora - fila[0] > janela_s:
+        fila.popleft()
+    return len(fila) >= maximo
+
+
+def registrar_tentativa(acao):
+    _tentativas[(acao, request.remote_addr)].append(time.monotonic())
+
+
+def _muitas_tentativas(janela_s):
+    resp = jsonify({"erro": "muitas tentativas. Espere alguns minutos e tente de novo."})
+    resp.headers["Retry-After"] = str(janela_s)
+    return resp, 429
 
 ESPECIES = {"cao", "gato"}
 PORTES = {"pequeno", "medio", "grande"}
@@ -60,11 +143,24 @@ def _posicao(fonte):
         lat, lon = float(fonte.get("lat")), float(fonte.get("lon"))
     except (TypeError, ValueError):
         return None
+    if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
     try:
         raio = min(max(float(fonte.get("raio_km") or 5), 0.5), 30)
     except (TypeError, ValueError):
         raio = 5.0
     return {"lat": lat, "lon": lon, "raio_km": raio}
+
+
+def _clinicas_demo(hora=None):
+    """Clínicas fictícias da tabela clinicas, no mesmo formato das clínicas reais do OpenStreetMap."""
+    lista = consultas.listar_clinicas()
+    for c in lista:
+        c.update(fonte="demo", horario_conhecido=True, especialidade_inferida=False, site="", osm_url="",
+                 horario_texto="24h" if c["aberto_24h"] else f'{c["abre"]}–{c["fecha"]}')
+        if hora:
+            c["aberta_agora"] = consultas.clinica_aberta(c, hora)
+    return lista
 
 
 def clinicas_para(pos, especialidade=None, hora=None, so_abertas=False, tolerante=False):
@@ -79,18 +175,17 @@ def clinicas_para(pos, especialidade=None, hora=None, so_abertas=False, tolerant
         try:
             lista = clinicas_osm.buscar_clinicas(pos["lat"], pos["lon"], pos["raio_km"])
             meta.update(fonte="osm", raio_km=pos["raio_km"], total_no_raio=len(lista))
-        except Exception as e:  # sem internet / Overpass fora → cai para demonstração
-            lista = consultas.listar_clinicas()
-            meta["aviso"] = f"Não foi possível consultar o OpenStreetMap ({type(e).__name__}); mostrando dados de demonstração."
-        if hora:
-            clinicas_osm.anotar_abertas(lista, hora)
-    else:
-        lista = consultas.listar_clinicas()
-        for c in lista:
-            c.update(fonte="demo", horario_conhecido=True, especialidade_inferida=False, site="", osm_url="",
-                     horario_texto="24h" if c["aberto_24h"] else f'{c["abre"]}–{c["fecha"]}')
             if hora:
-                c["aberta_agora"] = consultas.clinica_aberta(c, hora)
+                clinicas_osm.anotar_abertas(lista, hora)
+        except Exception as e:  # sem internet / Overpass fora → cai para demonstração
+            app.logger.warning("OpenStreetMap indisponível: %r", e)
+            lista = _clinicas_demo(hora)   # no MESMO formato das do OSM (antes faltava horario_texto → erro 500)
+            for c in lista:                # distância até a posição do usuário, não até o tutor fictício
+                c["distancia_km"] = round(clinicas_osm.haversine_km(pos["lat"], pos["lon"], c["lat"], c["lon"]), 2)
+            meta["aviso"] = ("O OpenStreetMap não respondeu agora; mostrando clínicas de demonstração "
+                             "(fictícias, em Sumaré-SP). Tente de novo em alguns minutos.")
+    else:
+        lista = _clinicas_demo(hora)
     if meta["fonte"] == "osm" and not lista:
         meta["aviso"] = "Nenhuma clínica veterinária mapeada no OpenStreetMap nesse raio. Aumente o raio."
     if especialidade:
@@ -116,6 +211,10 @@ def api_clinicas():
     """
     especialidade = request.args.get("especialidade") or None
     hora = request.args.get("hora") or None
+    if especialidade and especialidade not in ESPECIALIDADES:
+        return jsonify({"erro": "especialidade inválida"}), 400
+    if hora and not RE_HORA.match(hora):
+        return jsonify({"erro": "hora deve estar no formato HH:MM"}), 400
     pos = _posicao(request.args)
     so_abertas = request.args.get("so_abertas") == "1" or (pos is None and hora is not None)
     lista, meta = clinicas_para(pos, especialidade, hora, so_abertas)
@@ -127,8 +226,8 @@ def api_clinicas():
 @app.get("/api/geocodificar")
 def api_geocodificar():
     q = (request.args.get("q") or "").strip()
-    if len(q) < 3:
-        return jsonify({"erro": "informe um endereço ou cidade"}), 400
+    if not 3 <= len(q) <= 200:
+        return jsonify({"erro": "informe um endereço ou cidade (até 200 caracteres)"}), 400
     try:
         r = clinicas_osm.geocodificar(q)
     except Exception as e:
@@ -169,9 +268,14 @@ def api_compras():
     if tutor_id is None:
         return _sem_acesso_ao_tutor()
     try:
-        oferta_id = int(corpo["oferta_id"])
-        compra_id = consultas.registrar_compra(tutor_id, oferta_id, int(corpo.get("quantidade", 1)))
-    except (KeyError, ValueError, TypeError) as e:
+        oferta_id, quantidade = int(corpo["oferta_id"]), int(corpo.get("quantidade", 1))
+    except (KeyError, ValueError, TypeError):
+        return jsonify({"erro": "oferta_id e quantidade devem ser números inteiros"}), 400
+    if not 1 <= quantidade <= 20:   # quantidade negativa geraria valor negativo e distorceria a IA
+        return jsonify({"erro": "a quantidade deve ficar entre 1 e 20"}), 400
+    try:
+        compra_id = consultas.registrar_compra(tutor_id, oferta_id, quantidade)
+    except ValueError as e:          # mensagem nossa ("oferta X não existe"), sem detalhe interno
         return jsonify({"erro": str(e)}), 400
     return jsonify({"compra_id": compra_id, "historico": consultas.historico_tutor(tutor_id)}), 201
 
@@ -360,6 +464,9 @@ def _abrir_sessao(conta_id):
 @app.post("/api/cadastro")
 def api_cadastro():
     """Cria conta cliente (+ tutor + pet) ou conta clínica (+ clínica) e já abre a sessão."""
+    if limite_excedido("cadastro", MAX_CADASTROS, JANELA_CADASTRO_S):
+        return _muitas_tentativas(JANELA_CADASTRO_S)
+    registrar_tentativa("cadastro")
     corpo = request.get_json(silent=True) or {}
     tipo = corpo.get("tipo")
     email = str(corpo.get("email") or "").strip().lower()
@@ -369,8 +476,8 @@ def api_cadastro():
             raise ErroCadastro("tipo de conta deve ser 'cliente' ou 'clinica'")
         if not RE_EMAIL.match(email) or len(email) > 120:
             raise ErroCadastro("e-mail inválido")
-        if len(senha) < 6:
-            raise ErroCadastro("a senha deve ter pelo menos 6 caracteres")
+        if not 6 <= len(senha) <= 200:
+            raise ErroCadastro("a senha deve ter de 6 a 200 caracteres")
         if tipo == "cliente":
             tutor, pet = _validar_tutor(corpo), _validar_pet(corpo.get("pet") or {})
         else:
@@ -390,11 +497,21 @@ def api_cadastro():
     return jsonify({"conta": _abrir_sessao(conta_id)}), 201
 
 
+JANELA_LOGIN_S, MAX_LOGIN_ERRADO = 300, 5    # 5 senhas erradas em 5 minutos por IP
+JANELA_CADASTRO_S, MAX_CADASTROS = 3600, 10   # 10 tentativas de cadastro por hora por IP
+HASH_FALSO = generate_password_hash(secrets.token_hex(8))
+
+
 @app.post("/api/login")
 def api_login():
+    if limite_excedido("login", MAX_LOGIN_ERRADO, JANELA_LOGIN_S):
+        return _muitas_tentativas(JANELA_LOGIN_S)
     corpo = request.get_json(silent=True) or {}
-    conta = consultas.obter_conta(email=str(corpo.get("email") or "").strip().lower())
-    if conta is None or not check_password_hash(conta["senha_hash"], str(corpo.get("senha") or "")):
+    conta = consultas.obter_conta(email=str(corpo.get("email") or "").strip().lower()[:120])
+    # sem conta, compara com um hash falso: o tempo de resposta não revela quais e-mails existem
+    senha_ok = check_password_hash(conta["senha_hash"] if conta else HASH_FALSO, str(corpo.get("senha") or "")[:200])
+    if conta is None or not senha_ok:
+        registrar_tentativa("login")
         return jsonify({"erro": "e-mail ou senha inválidos"}), 401
     return jsonify({"conta": _abrir_sessao(conta["id"])})
 
@@ -466,8 +583,14 @@ def api_recomendar():
         idade = float(corpo.get("idade_anos", 5))
     except (TypeError, ValueError):
         return jsonify({"erro": "idade_anos inválida"}), 400
+    if not 0 <= idade <= 30:   # também recusa NaN e infinito
+        return jsonify({"erro": "idade_anos deve estar entre 0 e 30"}), 400
     situacao = str(corpo.get("situacao", "checkup"))
-    hora = corpo.get("hora") or datetime.now().strftime("%H:%M")
+    if situacao not in SITUACOES:
+        return jsonify({"erro": "situação inválida"}), 400
+    hora = str(corpo.get("hora") or datetime.now().strftime("%H:%M"))
+    if not RE_HORA.match(hora):
+        return jsonify({"erro": "hora deve estar no formato HH:MM"}), 400
 
     historico = consultas.historico_tutor(tutor_id)
     features = {"especie": especie, "idade_anos": idade, "porte": porte, "situacao": situacao,
@@ -489,5 +612,5 @@ def api_recomendar():
 if __name__ == "__main__":
     print("PatasPerto rodando em http://127.0.0.1:5000  (Ctrl+C para parar)")
     # Modo debug (recarrega ao salvar e mostra o depurador do Werkzeug, que EXECUTA código pelo navegador):
-    # só para desenvolvimento local. Ligado por padrão; desligue com FLASK_DEBUG=0 e nunca publique com ele ligado.
-    app.run(host="127.0.0.1", port=5000, debug=os.environ.get("FLASK_DEBUG", "1") == "1")
+    # DESLIGADO por padrão. Para desenvolver com recarga automática: FLASK_DEBUG=1 python app.py
+    app.run(host="127.0.0.1", port=5000, debug=os.environ.get("FLASK_DEBUG") == "1")

@@ -1,19 +1,7 @@
 """Smoke tests da API. Rode: pytest tests/  (requer banco criado e modelo treinado)."""
-import os
-import sys
-
 import pytest
 
-RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, RAIZ)
-
-from app import app  # noqa: E402
-
-
-@pytest.fixture
-def cliente():
-    app.config["TESTING"] = True
-    return app.test_client()
+# as fixtures cliente e banco_temp (cópia do banco para cada teste) estão em tests/conftest.py
 
 
 def test_ofertas(cliente):
@@ -114,6 +102,37 @@ def test_recomendar_com_posicao_usa_osm_e_relaxa_filtro(cliente, overpass_falso)
     assert len(r["banco"]["clinicas"]) == 3
 
 
+def test_openstreetmap_fora_do_ar_cai_para_demonstracao(cliente, monkeypatch):
+    """Overpass sem resposta (timeout) não pode virar erro 500: o mapa mostra as clínicas de demonstração."""
+    import clinicas_osm
+    def fora_do_ar(*a, **k):
+        raise TimeoutError("The read operation timed out")
+    monkeypatch.setattr(clinicas_osm, "_consultar_overpass", fora_do_ar)
+    monkeypatch.setattr(clinicas_osm, "_cache_get", lambda chave: None)
+    r = cliente.get("/api/clinicas?meta=1&lat=-23.0908&lon=-47.2180&raio_km=5&hora=11:00")
+    assert r.status_code == 200
+    corpo = r.get_json()
+    assert corpo["meta"]["fonte"] == "demo" and "OpenStreetMap" in corpo["meta"]["aviso"]
+    assert corpo["clinicas"] and all("horario_texto" in c for c in corpo["clinicas"])
+    assert all(c["distancia_km"] > 15 for c in corpo["clinicas"])      # Sumaré fica longe de Indaiatuba
+    rec = cliente.post("/api/recomendar", json={"tutor_id": 1, "situacao": "convulsao", "hora": "03:00", "lat": -23.09, "lon": -47.21})
+    assert rec.status_code == 200 and rec.get_json()["banco"]["fonte"] == "demo"
+
+
+def test_overpass_tenta_o_proximo_servidor(monkeypatch):
+    """Se um servidor do Overpass falha, o próximo da lista é usado."""
+    import clinicas_osm
+    tentados = []
+    def http_falso(url, data=None, timeout=30):
+        tentados.append(url)
+        if len(tentados) == 1:
+            raise TimeoutError("lento")
+        return {"elements": []}
+    monkeypatch.setattr(clinicas_osm, "_http_json", http_falso)
+    assert clinicas_osm._consultar_overpass(-23.09, -47.21, 5000) == {"elements": []}
+    assert tentados == list(clinicas_osm.OVERPASS_URLS[:2])
+
+
 def test_geocodificar_valida_entrada(cliente):
     assert cliente.get("/api/geocodificar?q=ab").status_code == 400
 
@@ -130,18 +149,6 @@ def test_opening_hours_parser():
 
 
 # ---------------- contas (login de demonstração) e painel da clínica
-@pytest.fixture(autouse=True)
-def banco_temp(tmp_path, monkeypatch):
-    """Cópia do banco para CADA teste: compras e cadastros dos testes nunca ficam no banco do app
-    (antes, compras acumuladas no tutor demo mudavam a resposta da IA e quebravam test_recomendar_emergencia)."""
-    import shutil
-    import consultas
-    copia = tmp_path / "patasperto.db"
-    shutil.copy(consultas.CAMINHO_DB, copia)
-    monkeypatch.setattr(consultas, "CAMINHO_DB", str(copia))
-    return str(copia)
-
-
 CLIENTE_NOVO = {"tipo": "cliente", "email": "Teste.Cliente@Exemplo.com", "senha": "segredo1",
                 "nome": "Teste Cliente", "cpf": "123.456.789-09", "telefone": "(19) 90000-0000", "endereco": "Rua Teste, 1",
                 "pet": {"nome": "Bolt", "especie": "cao", "raca": "Beagle", "idade_anos": 3, "porte": "medio",
