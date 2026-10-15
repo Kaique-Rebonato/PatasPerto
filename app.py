@@ -210,11 +210,23 @@ def api_pedidos():
     if pagamento not in PAGAMENTOS:
         return jsonify({"erro": "forma de pagamento inválida"}), 400
     try:
-        pedido = consultas.registrar_pedido(tutor_id, itens, entrega)
+        pedido = consultas.registrar_pedido(tutor_id, itens, entrega, pagamento)
     except ValueError as e:
         return jsonify({"erro": str(e)}), 400
     return jsonify(pedido | {"entrega": entrega, "pagamento": pagamento,
                              "historico": consultas.historico_tutor(tutor_id)}), 201
+
+
+@app.get("/api/pedidos")
+def api_listar_pedidos():
+    """Meus pedidos: os pedidos do tutor (mesma regra de acesso do histórico)."""
+    try:
+        tutor_id = _tutor_alvo(int(request.args.get("tutor_id", TUTOR_DEMO_ID)))
+    except ValueError:
+        return jsonify({"erro": "tutor_id inválido"}), 400
+    if tutor_id is None:
+        return _sem_acesso_ao_tutor()
+    return jsonify(consultas.listar_pedidos(tutor_id))
 
 
 # ------------------------------------------------------------ [banco] contas (login de DEMONSTRAÇÃO)

@@ -110,10 +110,10 @@ def registrar_compra(tutor_id, oferta_id, quantidade=1):
 FRETE_GRATIS_ACIMA = 100.0
 
 
-def registrar_pedido(tutor_id, itens, entrega):
+def registrar_pedido(tutor_id, itens, entrega, pagamento):
     """
-    Finaliza o carrinho: uma linha em `compras` por item, tudo na MESMA transação
-    (se uma oferta não existir, nada é gravado). Frete só para entrega em casa:
+    Finaliza o carrinho: uma linha em `pedidos` e uma em `compras` por item, tudo na MESMA
+    transação (se uma oferta não existir, nada é gravado). Frete só para entrega em casa:
     grátis com subtotal a partir de R$ 100; senão R$ 8,90 + R$ 4/km por loja do pedido.
     """
     with conectar() as con:
@@ -129,12 +129,34 @@ def registrar_pedido(tutor_id, itens, entrega):
         lojas = {r["loja_id"]: r["distancia_km"] for r, _ in linhas}
         frete = 0.0 if entrega == "retirada" or subtotal >= FRETE_GRATIS_ACIMA \
             else round(sum(8.90 + d * 4 for d in lojas.values()), 2)
+        total = round(subtotal + frete, 2)
+        pedido_id = con.execute(
+            "INSERT INTO pedidos (tutor_id, data, entrega, pagamento, subtotal, frete, total) VALUES (?,?,?,?,?,?,?)",
+            (tutor_id, datetime.now().isoformat(timespec="minutes"), entrega, pagamento, subtotal, frete, total)).lastrowid
         hoje = date.today().isoformat()
-        ids = [con.execute("INSERT INTO compras (tutor_id, oferta_id, data, quantidade, valor) VALUES (?,?,?,?,?)",
-                           (tutor_id, r["id"], hoje, q, r["preco"] * q)).lastrowid for r, q in linhas]
-    # shortcut: não há tabela de pedidos; o número vem da 1ª compra gravada. Criar `pedidos` se precisar consultar pedidos.
-    return {"numero": f"PP-{ids[0]:05d}", "itens": len(linhas), "subtotal": subtotal,
-            "frete": frete, "total": round(subtotal + frete, 2)}
+        for r, q in linhas:
+            con.execute("INSERT INTO compras (tutor_id, oferta_id, data, quantidade, valor, pedido_id) VALUES (?,?,?,?,?,?)",
+                        (tutor_id, r["id"], hoje, q, r["preco"] * q, pedido_id))
+    return {"numero": numero_pedido(pedido_id), "itens": len(linhas), "subtotal": subtotal, "frete": frete, "total": total}
+
+
+def numero_pedido(pedido_id):
+    return f"PP-{pedido_id:05d}"
+
+
+def listar_pedidos(tutor_id, limite=20):
+    """Pedidos do tutor, do mais recente para o mais antigo, com os itens de cada um."""
+    with conectar() as con:
+        pedidos = [dict(p) for p in con.execute(
+            "SELECT * FROM pedidos WHERE tutor_id = ? ORDER BY id DESC LIMIT ?", (tutor_id, limite))]
+        for p in pedidos:
+            p["numero"] = numero_pedido(p["id"])
+            p["itens"] = [dict(r) for r in con.execute("""
+                SELECT pr.nome, l.nome AS loja, c.quantidade, c.valor
+                  FROM compras c JOIN ofertas o ON o.id = c.oferta_id
+                  JOIN produtos pr ON pr.id = o.produto_id JOIN lojas l ON l.id = o.loja_id
+                 WHERE c.pedido_id = ? ORDER BY c.id""", (p["id"],))]
+    return pedidos
 
 
 def historico_tutor(tutor_id, janela_dias=JANELA_DIAS):

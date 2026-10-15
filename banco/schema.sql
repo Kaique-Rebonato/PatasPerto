@@ -84,7 +84,20 @@ CREATE TABLE pets (
   observacoes_saude TEXT      -- problemas/observações de saúde — FICTÍCIOS (dado sensível na LGPD)
 );
 
--- Cada compra feita no marketplace vira um registro aqui.
+-- Pedido finalizado no carrinho (POST /api/pedidos). O PAGAMENTO É SIMULADO:
+-- guardamos só a forma escolhida, nunca dados de cartão.
+CREATE TABLE pedidos (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  tutor_id  INTEGER NOT NULL REFERENCES tutores(id),
+  data      TEXT NOT NULL,      -- ISO "YYYY-MM-DDTHH:MM"
+  entrega   TEXT NOT NULL CHECK (entrega IN ('retirada', 'entrega')),
+  pagamento TEXT NOT NULL CHECK (pagamento IN ('pix', 'cartao_entrega', 'dinheiro')),
+  subtotal  REAL NOT NULL,
+  frete     REAL NOT NULL,
+  total     REAL NOT NULL
+);
+
+-- Cada compra feita no marketplace vira um registro aqui (uma linha por item do pedido).
 -- É esta tabela que alimenta as features de comportamento de compra da IA.
 CREATE TABLE compras (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +105,8 @@ CREATE TABLE compras (
   oferta_id  INTEGER NOT NULL REFERENCES ofertas(id),
   data       TEXT NOT NULL,   -- ISO "YYYY-MM-DD"
   quantidade INTEGER NOT NULL DEFAULT 1,
-  valor      REAL NOT NULL
+  valor      REAL NOT NULL,
+  pedido_id  INTEGER REFERENCES pedidos(id)   -- NULL nas compras do histórico fictício e em POST /api/compras
 );
 
 -- Contas de acesso (login de DEMONSTRAÇÃO). Dois tipos:

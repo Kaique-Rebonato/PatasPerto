@@ -280,7 +280,9 @@ async function salvarPerfil(p) {
 }
 function atualizarConta() {
   const modo = document.body.dataset.modo;
-  $("contaNome").textContent = conta && conta.tipo === "clinica" ? conta.clinica.nome : (lerPerfil().nome.split(" ")[0] || "Perfil");
+  let salvo = false; try { salvo = !!localStorage.getItem(chavePerfil()); } catch {}
+  $("contaNome").textContent = conta && conta.tipo === "clinica" ? conta.clinica.nome
+    : (conta || salvo) ? (lerPerfil().nome.split(" ")[0] || "Perfil") : "Perfil";   // sem conta: não fingir ser a tutora demo
   $("btSair").textContent = conta ? "Sair" : "Entrar";
   $("subtitulo").textContent = modo === "clinica" ? "Painel da clínica · indicadores agregados dos clientes"
     : "Produtos para o seu pet nas lojas mais perto de você";
@@ -309,6 +311,7 @@ function renderPerfil() {
       '<label class="rotulo">Problemas / observações de saúde (fictícios)</label><textarea class="campo" id="pObs" rows="2" placeholder="ex.: alergia alimentar, artrose">' + esc(p.obs) + '</textarea>' +
       '<p class="explica">Espécie, idade e porte entram como variáveis do modelo de recomendação.</p></div>' +
     htmlLocalizacao(renderPerfil) +
+    '<div class="bloco" id="blocoPedidos"><h3>' + ic("recibo") + ' Meus pedidos</h3><p class="vazio-clin">Carregando…</p></div>' +
     '<div class="bloco" id="blocoHist"><h3>' + ic("carrinho") + ' Histórico de compras <span class="rot-db">consulta ao banco</span></h3><p class="origem">últimos 90 dias · tabela compras do SQLite</p><p class="vazio-clin">Carregando…</p></div>' +
     '<button class="btn-prim" id="btSalvarPerfil">Salvar perfil</button>';
 
@@ -323,6 +326,16 @@ function renderPerfil() {
       toast(ehCliente() ? "Perfil salvo no banco." : "Perfil salvo (persistido no navegador).");
     } catch (e) { toast("Não foi possível salvar: " + e.message, 4000); }
   });
+  api("/api/pedidos?tutor_id=" + TUTOR_ID).then(lista => {
+    const dataBR = iso => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    const pag = v => { const n = PAGAMENTO_NOME[v] || v; return n[0].toUpperCase() + n.slice(1); };
+    $("blocoPedidos").querySelector(".vazio-clin").outerHTML = lista.length ? lista.map(pd =>
+      '<details class="pedido"><summary><span><b>' + esc(pd.numero) + '</b><small>' + dataBR(pd.data) + ' · ' + (pd.entrega === "entrega" ? "Entrega" : "Retirada") + ' · ' + pag(pd.pagamento) + '</small></span>' +
+      '<span class="ped-total">' + fmt(pd.total) + '</span></summary><ul class="mini-lista">' +
+      pd.itens.map(i => '<li><span>' + i.quantidade + '× ' + esc(i.nome) + ' <small>· ' + esc(i.loja) + '</small></span><span>' + fmt(i.valor) + '</span></li>').join("") +
+      '</ul><div class="linha"><span>Frete</span><span>' + (pd.frete ? fmt(pd.frete) : pd.entrega === "entrega" ? "Grátis" : "Sem custo") + '</span></div></details>').join("")
+      : '<p class="vazio-clin">Você ainda não fez pedidos. O que você finalizar no carrinho aparece aqui.</p>';
+  }).catch(() => { $("blocoPedidos").querySelector(".vazio-clin").innerHTML = MSG_SEM_API; });
   api("/api/tutores/" + TUTOR_ID + "/historico").then(h => {
     const f = h.features;
     const linhas = Object.keys(f).filter(k => k.startsWith("gasto_") && f[k] > 0).map(k => '<tr><td class="rot">' + k.replace("gasto_", "R$/mês em ") + '</td><td>' + fmt(f[k]) + '</td></tr>').join("");
@@ -998,7 +1011,8 @@ function renderPedidoConfirmado(r, itens, endereco) {
     '<div class="bloco"><h3>' + ic("ia") + ' Sua compra já ensina a IA <span class="rot-db">tabela compras</span></h3>' +
       '<p class="explica" style="margin:0">Os itens entraram no seu histórico: agora são ' + r.historico.total_compras_janela + ' compras nos últimos 90 dias. A recomendação de veterinário leva isso em conta.</p>' +
       '<button class="btn-sec" id="btVerRec">' + ic("ia") + ' Ver recomendação para o meu pet</button></div>' +
-    '<button class="btn-prim" id="btVoltarLoja">Voltar à loja</button>';
+    '<button class="btn-prim" id="btVoltarLoja">Voltar à loja</button><button class="btn-sec" id="btMeusPedidos">' + ic("recibo") + ' Ver meus pedidos</button>';
+  $("btMeusPedidos").addEventListener("click", () => { mostrar("perfil"); renderPerfil(); $("blocoPedidos").scrollIntoView({ block: "start" }); });
   $("btVerRec").addEventListener("click", () => { mostrar("recomendacao"); renderRecomendacao("checkup"); });
   $("btVoltarLoja").addEventListener("click", () => mostrar("lista"));
   window.scrollTo(0, 0);

@@ -223,6 +223,17 @@ def test_pedido_do_carrinho(cliente, banco_temp):
     assert cliente.post("/api/pedidos", json=pedido | {"entrega": "retirada"}).get_json()["frete"] == 0
 
 
+def test_meus_pedidos(cliente):
+    novo = cliente.post("/api/pedidos", json={"tutor_id": 1, "itens": [{"oferta_id": 1, "quantidade": 2}],
+                                              "entrega": "retirada", "pagamento": "dinheiro"}).get_json()
+    lista = cliente.get("/api/pedidos?tutor_id=1").get_json()
+    p = lista[0]                                                          # o mais recente primeiro
+    assert p["numero"] == novo["numero"] and p["total"] == novo["total"]
+    assert p["entrega"] == "retirada" and p["pagamento"] == "dinheiro" and p["data"]
+    assert p["itens"][0]["quantidade"] == 2 and p["itens"][0]["nome"] and p["itens"][0]["loja"]
+    assert cliente.get("/api/pedidos?tutor_id=2").status_code == 401      # pedidos de outro tutor, sem login
+
+
 def test_pedido_valida_entrada(cliente, banco_temp):
     antes = cliente.get("/api/tutores/1/historico").get_json()["total_compras_janela"]
     base = {"tutor_id": 1, "itens": [{"oferta_id": 1}], "entrega": "retirada", "pagamento": "dinheiro"}

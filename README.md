@@ -136,6 +136,7 @@ Por que Random Forest: lida com categóricas e numéricas juntas, é robusto a r
 | `GET /api/tutores/<id>` · `/historico` | banco | tutor + pet (com lat/lon, centro do mapa); features de compra dos últimos 90 dias. Sem login: só o tutor demo (id 1); conta cliente: só o próprio tutor |
 | `POST /api/compras` `{tutor_id, oferta_id}` | banco | registra a compra — o dado que alimenta a IA (conta cliente: sempre no próprio tutor; conta clínica: 403) |
 | `POST /api/pedidos` `{tutor_id, itens: [{oferta_id, quantidade}], entrega, pagamento}` | banco | finaliza o carrinho: uma compra por item na mesma transação; frete grátis a partir de R$ 100. `entrega` = `retirada` ou `entrega`; `pagamento` = `pix`, `cartao_entrega` ou `dinheiro` — **pagamento simulado**, nenhum dado de cartão é recebido |
+| `GET /api/pedidos?tutor_id=` | banco | "Meus pedidos": pedidos do tutor (tabela `pedidos`), do mais recente ao mais antigo, com os itens. Mesma regra de acesso do histórico. Banco criado antes desta tabela existir: rode `python banco/criar_banco.py` |
 | `POST /api/recomendar` `{tutor_id, especie, idade_anos, porte, situacao, hora, lat?, lon?, raio_km?}` | **IA + dados** | resposta com `ia` (especialidade, confiança, probabilidades, features usadas) e `banco` (clínicas abertas; reais se lat/lon vierem, com `fonte` e `aviso`) |
 | `GET /api/modelo/metricas` | arquivo | conteúdo de `ml/metricas.json` |
 | `POST /api/cadastro` | banco | cria conta `cliente` (+ tutor + pet) ou `clinica` (+ clínica) e já abre a sessão |
