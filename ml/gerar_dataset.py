@@ -29,6 +29,7 @@ filtra quais clínicas estão abertas — e isso é consulta ao banco, não IA.
 """
 import os
 import random
+import sys
 
 import numpy as np
 import pandas as pd
@@ -138,6 +139,7 @@ def gerar(n=N_LINHAS, semente=SEMENTE, ruido=RUIDO):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")   # o console do Windows (cp1252) não imprime acentos nem o █ das barras
     df = gerar()
     df.to_csv(CAMINHO_CSV, index=False)
     print(f"Dataset salvo em {CAMINHO_CSV}: {len(df)} linhas x {len(df.columns)} colunas")

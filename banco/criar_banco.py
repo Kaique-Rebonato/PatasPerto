@@ -17,6 +17,7 @@ import math
 import os
 import random
 import sqlite3
+import sys
 from datetime import date, datetime, timedelta
 
 from werkzeug.security import generate_password_hash
@@ -284,4 +285,5 @@ def criar():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")   # o console do Windows (cp1252) não imprime acentos nem o █ das barras
     criar()

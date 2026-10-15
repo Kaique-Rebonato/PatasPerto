@@ -14,6 +14,7 @@ Por que Random Forest?
 """
 import json
 import os
+import sys
 
 import joblib
 import pandas as pd
@@ -100,4 +101,5 @@ def treinar():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")   # o console do Windows (cp1252) não imprime acentos nem o █ das barras
     treinar()

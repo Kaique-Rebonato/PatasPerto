@@ -130,9 +130,10 @@ def test_opening_hours_parser():
 
 
 # ---------------- contas (login de demonstração) e painel da clínica
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def banco_temp(tmp_path, monkeypatch):
-    """Cópia do banco: cadastros feitos nos testes não ficam no banco do app."""
+    """Cópia do banco para CADA teste: compras e cadastros dos testes nunca ficam no banco do app
+    (antes, compras acumuladas no tutor demo mudavam a resposta da IA e quebravam test_recomendar_emergencia)."""
     import shutil
     import consultas
     copia = tmp_path / "patasperto.db"
