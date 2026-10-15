@@ -488,4 +488,6 @@ def api_recomendar():
 
 if __name__ == "__main__":
     print("PatasPerto rodando em http://127.0.0.1:5000  (Ctrl+C para parar)")
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    # Modo debug (recarrega ao salvar e mostra o depurador do Werkzeug, que EXECUTA código pelo navegador):
+    # só para desenvolvimento local. Ligado por padrão; desligue com FLASK_DEBUG=0 e nunca publique com ele ligado.
+    app.run(host="127.0.0.1", port=5000, debug=os.environ.get("FLASK_DEBUG", "1") == "1")

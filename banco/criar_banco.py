@@ -273,7 +273,8 @@ def criar():
                     (tipo, email, generate_password_hash(senha), tutor_id, clinica_id, agora))
 
     con.commit()
-    resumo = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+    # nome de tabela não aceita parâmetro (?) no SQL; aqui vem só desta lista fixa, nunca do usuário
+    resumo = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]  # nosemgrep: formatted-sql-query, sqlalchemy-execute-raw-query
               for t in ["lojas", "produtos", "ofertas", "clinicas", "tutores", "pets", "compras", "contas"]}
     con.close()
     print(f"Banco criado em {CAMINHO_DB}")

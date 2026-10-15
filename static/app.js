@@ -108,7 +108,8 @@ const ICONES = {
   termometro: '<path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/>',
 };
 const ic = nome => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + (ICONES[nome] || "") + '</svg>';
-document.querySelectorAll("[data-ic]").forEach(el => el.insertAdjacentHTML("afterbegin", ic(el.dataset.ic)));   // ícones do index.html
+// ícones do index.html. ic() só devolve SVGs fixos de ICONES (o nome pedido nunca vai para o HTML), então não há XSS
+document.querySelectorAll("[data-ic]").forEach(el => el.insertAdjacentHTML("afterbegin", ic(el.dataset.ic)));  // nosemgrep: react-unsanitized-method
 
 /* A salsicha da marca, de perfil: o corpo estica conforme `progresso` (0 a 1) — usada no frete grátis do carrinho. */
 function salsicha(progresso, rotulo) {

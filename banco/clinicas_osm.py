@@ -48,8 +48,11 @@ def _cache_set(chave, valor):
 
 
 def _http_json(url, data=None, timeout=30):
+    # urllib também abre file:// e outros esquemas: só as duas APIs públicas (https) são aceitas
+    if not url.startswith((OVERPASS_URL, NOMINATIM_URL + "?")):
+        raise ValueError(f"URL externa não permitida: {url[:60]}")
     req = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosemgrep: dynamic-urllib-use-detected — URL validada acima
         return json.load(resp)
 
 
